@@ -1557,15 +1557,10 @@ function renderStudentsList(entityKey){
     const normSearch = normalizeName(search);
     students = students.filter(s => normalizeName(s.name).includes(normSearch));
   }
-  // Apply affairs dept filter (for sub-dept routing)
-  if(entityKey === 'affairs' && STATE.affairsDeptFilter){
-    students = students.filter(s => s.dept === STATE.affairsDeptFilter);
-  }
-  // Apply affairs-dept filter (sub-dept routing) - takes priority
+  // فلتر القسم - affairsDeptFilter يأخذ الأولوية
   if(entityKey === 'affairs' && STATE.affairsDeptFilter){
     students = students.filter(s => s.dept === STATE.affairsDeptFilter);
   } else if(filterDept !== 'all'){
-    // Filter by dept (only when no affairsDeptFilter)
     students = students.filter(s => s.dept === filterDept);
   }
   if(filterPeriod !== 'all'){
@@ -2593,9 +2588,7 @@ $('pwBack').onclick = () => hidePwScreen();
 $('pwInput').addEventListener('keydown', e => {
   if(e.key === 'Enter'){ e.preventDefault(); tryPassword(); }
 });
-$('logoutBtn').onclick = () => {
-  if(confirm('تسجيل الخروج؟')) logout();
-};
+$('logoutBtn').onclick = () => logout();
 $('changePwBtn').onclick = showChangePassword;
 $('modalClose').onclick = () => {
   $('modal').classList.remove('show');
