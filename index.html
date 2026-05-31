@@ -346,6 +346,9 @@ body{
 .filter-chip:hover{background:var(--panel-2)}
 .filter-chip.active{background:var(--accent);color:#fff;border-color:var(--accent)}
 
+.sel-tab-btn:hover{background:var(--panel-2) !important}
+.sel-tab-btn.active{background:var(--accent) !important;color:#fff !important;border-color:var(--accent) !important}
+
 /* Footer */
 .designer-footer{
   text-align:center;margin-top:24px;padding:14px 12px;
@@ -1225,29 +1228,63 @@ function updateSelectionBar(){
     const card = cb.closest('.student-result-card');
     if(card) card.style.borderColor = cb.checked ? 'var(--accent)' : '';
   });
-  // Update select-all checkbox
-  const selAll = $('checkSelectAll');
-  if(selAll){
-    const visibleIds = Array.from(document.querySelectorAll('.student-checkbox')).map(c => c.dataset.id);
-    selAll.checked = visibleIds.length > 0 && visibleIds.every(id => SELECTED_IDS.has(id));
-    selAll.indeterminate = !selAll.checked && visibleIds.some(id => SELECTED_IDS.has(id));
+  // تحديث عداد التحديد في التبويبات
+  document.querySelectorAll('.sel-tab-btn').forEach(btn => btn.style.fontWeight = '');
+}
+
+// mode: 'all' | 'cleared' | 'pending'
+function selectByMode(mode){
+  const allIds = STATE._visibleStudents || [];
+  if(allIds.length === 0){ updateSelectionBar(); return; }
+  const entityKey = window._currentEntityKey || 'affairs';
+  const isDorms = entityKey === 'dorms';
+
+  const candidates = allIds.filter(id => {
+    const c = STATE.clearances[id] || {};
+    if(mode === 'all') return true;
+    const cleared = isDorms
+      ? (c.dorms === true || c.dorms === 'not_applicable')
+      : !!c[entityKey];
+    return mode === 'cleared' ? cleared : !cleared;
+  });
+  const allAlreadySelected = candidates.length > 0 && candidates.every(id => SELECTED_IDS.has(id));
+  if(allAlreadySelected){
+    candidates.forEach(id => SELECTED_IDS.delete(id));
+  } else {
+    candidates.forEach(id => SELECTED_IDS.add(id));
   }
+  document.querySelectorAll('.student-result-card').forEach(card => {
+    const id = card.dataset.id;
+    if(!id) return;
+    const cb = card.querySelector('.student-checkbox');
+    const selected = SELECTED_IDS.has(id);
+    if(cb) cb.checked = selected;
+    card.style.borderColor = selected ? 'var(--accent)' : '';
+    card.style.background = selected ? 'rgba(16,185,129,.05)' : '';
+  });
+  document.querySelectorAll('.sel-tab-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.mode === mode);
+  });
+  updateSelectionBar();
 }
 
 function toggleSelectAll(){
-  // اقرأ الطلبة المرئيين من الـ DOM أو من STATE
-  let allIds = STATE._visibleStudents || [];
-  if(allIds.length === 0){
-    allIds = Array.from(document.querySelectorAll('.student-checkbox')).map(c => c.dataset.id).filter(Boolean);
-  }
+  const allIds = STATE._visibleStudents || [];
   if(allIds.length === 0){ updateSelectionBar(); return; }
   const allChecked = allIds.every(id => SELECTED_IDS.has(id));
   if(allChecked){
-    // إلغاء تحديد الكل
     allIds.forEach(id => SELECTED_IDS.delete(id));
   } else {
-    // تحديد الكل
-    allIds.forEach(id => SELECTED_IDS.add(id));
+    // تحديد فقط من ليس لهم براءة ذمة
+    const entityKey = window._currentEntityKey || 'affairs';
+    const isDorms = entityKey === 'dorms';
+    allIds.forEach(id => {
+      const c = STATE.clearances[id] || {};
+      let hasCleared = isDorms
+        ? (c.dorms === true || c.dorms === 'not_applicable')
+        : !!c[entityKey];
+      if(!hasCleared) SELECTED_IDS.add(id);
+    });
   }
   // تحديث checkboxes البطاقات المرئية في الـ DOM
   document.querySelectorAll('.student-result-card').forEach(card => {
@@ -1561,10 +1598,24 @@ function renderStudentsList(entityKey){
     return;
   }
 
-  const allSelected = students.length > 0 && students.every(s => SELECTED_IDS.has(s.id));
-  const someSelected = students.some(s => SELECTED_IDS.has(s.id));
+  const selAllHtml = `<div style="background:var(--panel);border-radius:12px;padding:8px 10px;margin-bottom:8px;display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+    <span style="font-size:11px;color:var(--muted);font-weight:600;margin-left:2px">تحديد:</span>
+    <button class="sel-tab-btn" data-mode="all" onclick="selectByMode('all')"
+      style="border:1px solid var(--border);background:transparent;border-radius:8px;padding:4px 10px;font-size:12px;cursor:pointer;font-family:inherit;color:var(--text);transition:.15s">
+      الكل (${students.length})
+    </button>
+    <button class="sel-tab-btn" data-mode="cleared" onclick="selectByMode('cleared')"
+      style="border:1px solid var(--border);background:transparent;border-radius:8px;padding:4px 10px;font-size:12px;cursor:pointer;font-family:inherit;color:var(--text);transition:.15s">
+      ✅ المكتملون
+    </button>
+    <button class="sel-tab-btn" data-mode="pending" onclick="selectByMode('pending')"
+      style="border:1px solid var(--border);background:transparent;border-radius:8px;padding:4px 10px;font-size:12px;cursor:pointer;font-family:inherit;color:var(--text);transition:.15s">
+      ⏳ قيد الإجراء
+    </button>
+    ${SELECTED_IDS.size > 0 ? `<span style="font-size:11px;color:var(--accent);margin-right:auto;font-weight:700">✓ ${SELECTED_IDS.size} محدد</span>` : ''}
+  </div>`;
 
-  list.innerHTML = students.map(s => {
+  list.innerHTML = selAllHtml + students.map(s => {
     const c = STATE.clearances[s.id] || {};
     const isSelected = SELECTED_IDS.has(s.id);
     let badge = '';
@@ -1578,24 +1629,23 @@ function renderStudentsList(entityKey){
     }
     return `
       <div class="student-result-card" data-id="${s.id}"
-        style="${isSelected ? 'border-color:var(--accent);background:rgba(16,185,129,.05)' : ''}"
-        onclick="openEntityStudentModal('${s.id}','${entityKey}')">
-        <div class="s-name">${escapeHtml(s.name)}</div>
-        <div class="s-meta">
-          <span>🏫 ${escapeHtml(s.dept)}</span>
-          <span>📅 ${escapeHtml(s.period)}</span>
-          ${s.status && s.status !== 'منتظم' ? `<span>📚 ${escapeHtml(s.status)}</span>` : ''}
+        style="display:flex;align-items:center;gap:10px;${isSelected ? 'border-color:var(--accent);background:rgba(16,185,129,.05)' : ''}">
+        <input type="checkbox" class="student-checkbox" data-id="${s.id}" ${isSelected ? 'checked' : ''}
+          style="width:18px;height:18px;flex-shrink:0;cursor:pointer;accent-color:var(--accent)"
+          onclick="event.stopPropagation();toggleStudentSelect('${s.id}','${entityKey}')"/>
+        <div style="flex:1;min-width:0" onclick="openEntityStudentModal('${s.id}','${entityKey}')">
+          <div class="s-name">${escapeHtml(s.name)}</div>
+          <div class="s-meta">
+            <span>🏫 ${escapeHtml(s.dept)}</span>
+            <span>📅 ${escapeHtml(s.period)}</span>
+            ${s.status && s.status !== 'منتظم' ? `<span>📚 ${escapeHtml(s.status)}</span>` : ''}
+          </div>
+          <div class="s-status-badges">${badge}</div>
         </div>
-        <div class="s-status-badges">${badge}</div>
       </div>
     `;
   }).join('');
 
-  const selAll = $('checkSelectAll');
-  if(selAll){
-    selAll.checked = allSelected;
-    selAll.indeterminate = !allSelected && someSelected;
-  }
 }
 
 function openEntityStudentModal(studentId, entityKey){
@@ -1672,6 +1722,13 @@ function openEntityStudentModal(studentId, entityKey){
   $('modal').classList.add('show');
   document.body.style.overflow = 'hidden';
 }
+
+// تعريض الدوال المستدعاة من onclick في HTML للـ global scope
+window.openEntityStudentModal = openEntityStudentModal;
+window.toggleStudentSelect = toggleStudentSelect;
+window.toggleSelectAll = toggleSelectAll;
+window.clearAllSelection = clearAllSelection;
+window.selectByMode = selectByMode;
 
 function attachEntityModalEvents(studentId, entityKey){
   $('modalBody').addEventListener('click', async (e) => {
@@ -2342,10 +2399,24 @@ function renderDeptStudentsList(deptName){
     return;
   }
 
-  const allSelected = students.every(s => SELECTED_IDS.has(s.id));
-  const someSelected = students.some(s => SELECTED_IDS.has(s.id));
+  const deptSelAllHtml = `<div style="background:var(--panel);border-radius:12px;padding:8px 10px;margin-bottom:8px;display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+    <span style="font-size:11px;color:var(--muted);font-weight:600;margin-left:2px">تحديد:</span>
+    <button class="sel-tab-btn" data-mode="all" onclick="selectByMode('all')"
+      style="border:1px solid var(--border);background:transparent;border-radius:8px;padding:4px 10px;font-size:12px;cursor:pointer;font-family:inherit;color:var(--text);transition:.15s">
+      الكل (${students.length})
+    </button>
+    <button class="sel-tab-btn" data-mode="cleared" onclick="selectByMode('cleared')"
+      style="border:1px solid var(--border);background:transparent;border-radius:8px;padding:4px 10px;font-size:12px;cursor:pointer;font-family:inherit;color:var(--text);transition:.15s">
+      ✅ المكتملون
+    </button>
+    <button class="sel-tab-btn" data-mode="pending" onclick="selectByMode('pending')"
+      style="border:1px solid var(--border);background:transparent;border-radius:8px;padding:4px 10px;font-size:12px;cursor:pointer;font-family:inherit;color:var(--text);transition:.15s">
+      ⏳ قيد الإجراء
+    </button>
+    ${SELECTED_IDS.size > 0 ? `<span style="font-size:11px;color:var(--accent);margin-right:auto;font-weight:700">✓ ${SELECTED_IDS.size} محدد</span>` : ''}
+  </div>`;
 
-  list.innerHTML = students.map(s => {
+  list.innerHTML = deptSelAllHtml + students.map(s => {
     const c = STATE.clearances[s.id] || {};
     const isSelected = SELECTED_IDS.has(s.id);
     const badge = c.dept
@@ -2353,17 +2424,22 @@ function renderDeptStudentsList(deptName){
       : '<span class="s-badge pending">⏳ قيد الإجراء</span>';
     return `
       <div class="student-result-card" data-id="${s.id}"
-        style="${isSelected ? 'border-color:var(--accent);background:rgba(16,185,129,.05)' : ''}"
-        onclick="openEntityStudentModal('${s.id}','dept')">
-        <div class="s-name">${escapeHtml(s.name)}</div>
-        <div class="s-meta">
-          <span>📅 ${escapeHtml(s.period)}</span>
-          ${s.status && s.status !== 'منتظم' ? `<span>📚 ${escapeHtml(s.status)}</span>` : ''}
+        style="display:flex;align-items:center;gap:10px;${isSelected ? 'border-color:var(--accent);background:rgba(16,185,129,.05)' : ''}">
+        <input type="checkbox" class="student-checkbox" data-id="${s.id}" ${isSelected ? 'checked' : ''}
+          style="width:18px;height:18px;flex-shrink:0;cursor:pointer;accent-color:var(--accent)"
+          onclick="event.stopPropagation();toggleStudentSelect('${s.id}','dept')"/>
+        <div style="flex:1;min-width:0" onclick="openEntityStudentModal('${s.id}','dept')">
+          <div class="s-name">${escapeHtml(s.name)}</div>
+          <div class="s-meta">
+            <span>📅 ${escapeHtml(s.period)}</span>
+            ${s.status && s.status !== 'منتظم' ? `<span>📚 ${escapeHtml(s.status)}</span>` : ''}
+          </div>
+          <div class="s-status-badges">${badge}</div>
         </div>
-        <div class="s-status-badges">${badge}</div>
       </div>
     `;
   }).join('');
+
 }
 
 // === Wire up login screen ===
@@ -2517,7 +2593,9 @@ $('pwBack').onclick = () => hidePwScreen();
 $('pwInput').addEventListener('keydown', e => {
   if(e.key === 'Enter'){ e.preventDefault(); tryPassword(); }
 });
-$('logoutBtn').onclick = () => logout();
+$('logoutBtn').onclick = () => {
+  if(confirm('تسجيل الخروج؟')) logout();
+};
 $('changePwBtn').onclick = showChangePassword;
 $('modalClose').onclick = () => {
   $('modal').classList.remove('show');
