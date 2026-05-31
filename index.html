@@ -346,8 +346,41 @@ body{
 .filter-chip:hover{background:var(--panel-2)}
 .filter-chip.active{background:var(--accent);color:#fff;border-color:var(--accent)}
 
-.sel-tab-btn:hover{background:var(--panel-2) !important}
-.sel-tab-btn.active{background:var(--accent) !important;color:#fff !important;border-color:var(--accent) !important}
+.sel-tab-btn{
+  transition:all .25s cubic-bezier(.4,0,.2,1);
+  font-weight:700;font-size:12px;
+  border-radius:12px;padding:10px 8px;
+  cursor:pointer;font-family:inherit;
+  text-align:center;border:2px solid var(--border);
+  background:rgba(255,255,255,.03);color:var(--muted);
+  position:relative;overflow:hidden;
+}
+.sel-tab-btn::before{
+  content:'';position:absolute;inset:0;opacity:0;transition:.25s;
+}
+.sel-tab-btn:hover{
+  transform:translateY(-2px);
+  color:var(--text);
+  border-color:rgba(255,255,255,.15);
+  background:rgba(255,255,255,.06);
+  box-shadow:0 4px 16px rgba(0,0,0,.3);
+}
+.sel-tab-btn.active{
+  background:linear-gradient(135deg,var(--accent),var(--accent-2)) !important;
+  color:#fff !important;border-color:var(--accent) !important;
+  box-shadow:0 6px 20px rgba(16,185,129,.4);
+  transform:translateY(-1px);
+}
+.sel-tab-btn[data-mode="pending"].active{
+  background:linear-gradient(135deg,#f59e0b,#d97706) !important;
+  border-color:var(--gold) !important;color:#000 !important;
+  box-shadow:0 6px 20px rgba(251,191,36,.4);
+}
+.sel-tab-btn[data-mode="all"].active{
+  background:linear-gradient(135deg,#3b82f6,#2563eb) !important;
+  border-color:var(--blue) !important;color:#fff !important;
+  box-shadow:0 6px 20px rgba(59,130,246,.4);
+}
 
 /* Footer */
 .designer-footer{
@@ -1309,9 +1342,12 @@ async function applySelectedEntity(entityKey, setValue){
   const isDorms = entityKey === 'dorms';
   const actionLabel = setValue ? 'تأشير' : 'إلغاء تأشير';
   
-  if(!confirm(`⚠️ سيتم ${actionLabel} براءة الذمة لـ ${SELECTED_IDS.size} طالب محدد.
-
-هل أنت متأكد؟`)) return;
+  showConfirmDialog(
+    `${setValue ? '✅' : '❌'} تأكيد العملية`,
+    `سيتم <b>${actionLabel}</b> براءة الذمة لـ <b style="color:var(--accent)">${SELECTED_IDS.size} طالب</b> محدد.`,
+    'تأكيد', 'إلغاء',
+    setValue ? 'primary' : 'danger',
+    async () => {
   
   toast(`⏳ جاري ${actionLabel} ${SELECTED_IDS.size} طالب...`, 'warn', 10000);
   
@@ -1351,15 +1387,19 @@ async function applySelectedEntity(entityKey, setValue){
   toast(`✅ تم ${actionLabel} ${done} طالب`, 'success');
   SELECTED_IDS.clear();
   renderStudentsList(entityKey);
+  }); // end showConfirmDialog
 }
 
 async function applySelectedDept(deptName, setValue){
   if(SELECTED_IDS.size === 0){ toast('لم تحدد أي طالب', 'warn'); return; }
   const actionLabel = setValue ? 'تأشير' : 'إلغاء تأشير';
   
-  if(!confirm(`⚠️ سيتم ${actionLabel} براءة الذمة لـ ${SELECTED_IDS.size} طالب محدد.
-
-هل أنت متأكد؟`)) return;
+  showConfirmDialog(
+    `${setValue ? '✅' : '❌'} تأكيد العملية`,
+    `سيتم <b>${actionLabel}</b> براءة الذمة لـ <b style="color:var(--accent)">${SELECTED_IDS.size} طالب</b> محدد.`,
+    'تأكيد', 'إلغاء',
+    setValue ? 'primary' : 'danger',
+    async () => {
   
   toast(`⏳ جاري ${actionLabel} ${SELECTED_IDS.size} طالب...`, 'warn', 10000);
   
@@ -1390,6 +1430,7 @@ async function applySelectedDept(deptName, setValue){
   toast(`✅ تم ${actionLabel} ${done} طالب`, 'success');
   SELECTED_IDS.clear();
   renderDeptStudentsList(deptName);
+  }); // end showConfirmDialog
 }
 
 async function applySelectedDean(entityKey, setValue){
@@ -1398,9 +1439,12 @@ async function applySelectedDean(entityKey, setValue){
   const entityLabels = {affairs:'شؤون الطلبة',finance:'المالية',dorms:'الأقسام الداخلية',dept:'القسم العلمي'};
   const label = entityLabels[entityKey] || entityKey;
   
-  if(!confirm(`⚠️ سيتم ${actionLabel} ${label} لـ ${SELECTED_IDS.size} طالب محدد.
-
-هل أنت متأكد؟`)) return;
+  showConfirmDialog(
+    `${setValue ? '✅' : '❌'} تأكيد العملية`,
+    `سيتم <b>${actionLabel}</b> ${label} لـ <b style="color:var(--accent)">${SELECTED_IDS.size} طالب</b> محدد.`,
+    'تأكيد', 'إلغاء',
+    setValue ? 'primary' : 'danger',
+    async () => {
   
   toast(`⏳ جاري ${actionLabel}...`, 'warn', 10000);
   
@@ -1434,6 +1478,7 @@ async function applySelectedDean(entityKey, setValue){
   toast(`✅ تم ${actionLabel} ${done} طالب`, 'success');
   SELECTED_IDS.clear();
   doDeanRender();
+  }); // end showConfirmDialog
 }
 
 async function bulkToggleEntity(entityKey, setValue){
@@ -1474,13 +1519,14 @@ async function bulkToggleEntity(entityKey, setValue){
   }
 
   const actionLabel = setValue ? 'تأشير' : 'إلغاء تأشير';
-  const confirmMsg = `⚠️ سيتم ${actionLabel} براءة الذمة لـ ${students.length} طالب من الطلبة المعروضين حالياً.
 
-هل أنت متأكد؟`;
+  showConfirmDialog(
+    `${setValue ? '✅' : '❌'} تأكيد العملية`,
+    `سيتم <b>${actionLabel}</b> براءة الذمة لـ <b style="color:var(--accent)">${students.length} طالب</b> من المعروضين حالياً.`,
+    'تأكيد', 'إلغاء',
+    setValue ? 'primary' : 'danger',
+    async () => {
 
-  if(!confirm(confirmMsg)) return;
-
-  // Show progress
   toast(`⏳ جاري ${actionLabel} ${students.length} طالب...`, 'warn', 10000);
 
   const fb = window.__fb;
@@ -1541,6 +1587,7 @@ async function bulkToggleEntity(entityKey, setValue){
 
   toast(`✅ تم ${actionLabel} ${done} طالب`, 'success');
   renderStudentsList(entityKey);
+  }); // end showConfirmDialog
 }
 
 function renderStudentsList(entityKey){
@@ -1593,21 +1640,44 @@ function renderStudentsList(entityKey){
     return;
   }
 
-  const selAllHtml = `<div style="background:var(--panel);border-radius:12px;padding:8px 10px;margin-bottom:8px;display:flex;align-items:center;gap:6px;flex-wrap:wrap">
-    <span style="font-size:11px;color:var(--muted);font-weight:600;margin-left:2px">تحديد:</span>
-    <button class="sel-tab-btn" data-mode="all" onclick="selectByMode('all')"
-      style="border:1px solid var(--border);background:transparent;border-radius:8px;padding:4px 10px;font-size:12px;cursor:pointer;font-family:inherit;color:var(--text);transition:.15s">
-      الكل (${students.length})
-    </button>
-    <button class="sel-tab-btn" data-mode="cleared" onclick="selectByMode('cleared')"
-      style="border:1px solid var(--border);background:transparent;border-radius:8px;padding:4px 10px;font-size:12px;cursor:pointer;font-family:inherit;color:var(--text);transition:.15s">
-      ✅ المكتملون
-    </button>
-    <button class="sel-tab-btn" data-mode="pending" onclick="selectByMode('pending')"
-      style="border:1px solid var(--border);background:transparent;border-radius:8px;padding:4px 10px;font-size:12px;cursor:pointer;font-family:inherit;color:var(--text);transition:.15s">
-      ⏳ قيد الإجراء
-    </button>
-    ${SELECTED_IDS.size > 0 ? `<span style="font-size:11px;color:var(--accent);margin-right:auto;font-weight:700">✓ ${SELECTED_IDS.size} محدد</span>` : ''}
+  // count cleared/pending for display
+  const _cntCleared = students.filter(s => {
+    const c = STATE.clearances[s.id] || {};
+    return isDorms ? (c.dorms === true || c.dorms === 'not_applicable') : !!c[entityKey];
+  }).length;
+  const _cntPending = students.length - _cntCleared;
+
+  const selAllHtml = `<div style="background:linear-gradient(135deg,rgba(30,41,59,.9),rgba(15,23,42,.9));border:1.5px solid rgba(255,255,255,.08);border-radius:16px;padding:12px;margin-bottom:10px;box-shadow:0 4px 24px rgba(0,0,0,.3)">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+      <div style="display:flex;align-items:center;gap:6px">
+        <div style="width:6px;height:6px;border-radius:50%;background:var(--accent);box-shadow:0 0 6px var(--accent)"></div>
+        <span style="font-size:11px;color:var(--text);font-weight:800;letter-spacing:.5px">تحديد سريع</span>
+      </div>
+      ${SELECTED_IDS.size > 0 ? 
+        `<div style="display:flex;align-items:center;gap:6px;background:rgba(16,185,129,.15);border:1px solid rgba(16,185,129,.3);padding:4px 12px;border-radius:20px">
+          <span style="font-size:10px;color:var(--accent);font-weight:800">✓ ${SELECTED_IDS.size} محدد</span>
+          <button onclick="clearAllSelection()" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:12px;padding:0;line-height:1">✕</button>
+        </div>` : 
+        `<span style="font-size:10px;color:var(--muted)">${students.length} طالب</span>`
+      }
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+      <button class="sel-tab-btn" data-mode="all" onclick="selectByMode('all')">
+        <div style="font-size:16px;margin-bottom:4px">🔵</div>
+        <div>الكل</div>
+        <div style="font-size:10px;margin-top:2px;opacity:.75">${students.length}</div>
+      </button>
+      <button class="sel-tab-btn" data-mode="cleared" onclick="selectByMode('cleared')">
+        <div style="font-size:16px;margin-bottom:4px">✅</div>
+        <div>المكتملون</div>
+        <div style="font-size:10px;margin-top:2px;opacity:.75">${_cntCleared}</div>
+      </button>
+      <button class="sel-tab-btn" data-mode="pending" onclick="selectByMode('pending')">
+        <div style="font-size:16px;margin-bottom:4px">⏳</div>
+        <div>قيد الإجراء</div>
+        <div style="font-size:10px;margin-top:2px;opacity:.75">${_cntPending}</div>
+      </button>
+    </div>
   </div>`;
 
   list.innerHTML = selAllHtml + students.map(s => {
@@ -1758,7 +1828,9 @@ async function handleEntityAction(action, studentId, entityKey, btn){
     renderStudentsList(entityKey);
   }
   else if(action === 'undo'){
-    if(!confirm('إلغاء تأشير براءة الذمة لهذا الطالب؟')) { btn.disabled = false; return; }
+    btn.disabled = false;
+    showConfirmDialog('↩️ تأكيد الإلغاء', 'هل تريد إلغاء تأشير براءة الذمة لهذا الطالب؟', 'إلغاء التأشير', 'تراجع', 'danger', async () => {
+    btn.disabled = true;
     const update = {
       [entityKey]: false,
       [entityKey + '_at']: null,
@@ -1772,6 +1844,7 @@ async function handleEntityAction(action, studentId, entityKey, btn){
     toast('تم الإلغاء', 'warn');
     $('modal').classList.remove('show'); document.body.style.overflow = '';
     renderStudentsList(entityKey);
+    }); // end showConfirmDialog
   }
   else if(action === 'set-dorms'){
     const val = btn.dataset.val;
@@ -1936,7 +2009,12 @@ async function bulkToggleDept(deptName, setValue){
   if(students.length === 0){ toast('لا يوجد طلبة معروضون', 'warn'); return; }
 
   const actionLabel = setValue ? 'تأشير' : 'إلغاء تأشير';
-  if(!confirm(`⚠️ سيتم ${actionLabel} براءة الذمة لـ ${students.length} طالب من طلبة قسم تقنيات ${deptName} المعروضين حالياً.\n\nهل أنت متأكد؟`)) return;
+  showConfirmDialog(
+    `${setValue ? '✅' : '❌'} تأكيد العملية`,
+    `سيتم <b>${actionLabel}</b> براءة الذمة لـ <b style="color:var(--accent)">${students.length} طالب</b> من قسم تقنيات <b>${deptName}</b> المعروضين حالياً.`,
+    'تأكيد', 'إلغاء',
+    setValue ? 'primary' : 'danger',
+    async () => {
 
   toast(`⏳ جاري ${actionLabel} ${students.length} طالب...`, 'warn', 10000);
 
@@ -1974,6 +2052,7 @@ async function bulkToggleDept(deptName, setValue){
 
   toast(`✅ تم ${actionLabel} ${done} طالب`, 'success');
   renderDeptStudentsList(deptName);
+  }); // end showConfirmDialog
 }
 
 function renderDeptResultsTab(deptName, hasEvening){
@@ -2394,21 +2473,40 @@ function renderDeptStudentsList(deptName){
     return;
   }
 
-  const deptSelAllHtml = `<div style="background:var(--panel);border-radius:12px;padding:8px 10px;margin-bottom:8px;display:flex;align-items:center;gap:6px;flex-wrap:wrap">
-    <span style="font-size:11px;color:var(--muted);font-weight:600;margin-left:2px">تحديد:</span>
-    <button class="sel-tab-btn" data-mode="all" onclick="selectByMode('all')"
-      style="border:1px solid var(--border);background:transparent;border-radius:8px;padding:4px 10px;font-size:12px;cursor:pointer;font-family:inherit;color:var(--text);transition:.15s">
-      الكل (${students.length})
-    </button>
-    <button class="sel-tab-btn" data-mode="cleared" onclick="selectByMode('cleared')"
-      style="border:1px solid var(--border);background:transparent;border-radius:8px;padding:4px 10px;font-size:12px;cursor:pointer;font-family:inherit;color:var(--text);transition:.15s">
-      ✅ المكتملون
-    </button>
-    <button class="sel-tab-btn" data-mode="pending" onclick="selectByMode('pending')"
-      style="border:1px solid var(--border);background:transparent;border-radius:8px;padding:4px 10px;font-size:12px;cursor:pointer;font-family:inherit;color:var(--text);transition:.15s">
-      ⏳ قيد الإجراء
-    </button>
-    ${SELECTED_IDS.size > 0 ? `<span style="font-size:11px;color:var(--accent);margin-right:auto;font-weight:700">✓ ${SELECTED_IDS.size} محدد</span>` : ''}
+  const _dCntCleared = students.filter(s => { const c = STATE.clearances[s.id] || {}; return !!c.dept; }).length;
+  const _dCntPending = students.length - _dCntCleared;
+
+  const deptSelAllHtml = `<div style="background:linear-gradient(135deg,rgba(30,41,59,.9),rgba(15,23,42,.9));border:1.5px solid rgba(255,255,255,.08);border-radius:16px;padding:12px;margin-bottom:10px;box-shadow:0 4px 24px rgba(0,0,0,.3)">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+      <div style="display:flex;align-items:center;gap:6px">
+        <div style="width:6px;height:6px;border-radius:50%;background:var(--purple);box-shadow:0 0 6px var(--purple)"></div>
+        <span style="font-size:11px;color:var(--text);font-weight:800;letter-spacing:.5px">تحديد سريع</span>
+      </div>
+      \${SELECTED_IDS.size > 0 ?
+        \`<div style="display:flex;align-items:center;gap:6px;background:rgba(16,185,129,.15);border:1px solid rgba(16,185,129,.3);padding:4px 12px;border-radius:20px">
+          <span style="font-size:10px;color:var(--accent);font-weight:800">✓ \${SELECTED_IDS.size} محدد</span>
+          <button onclick="clearAllSelection()" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:12px;padding:0;line-height:1">✕</button>
+        </div>\` :
+        \`<span style="font-size:10px;color:var(--muted)">\${students.length} طالب</span>\`
+      }
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+      <button class="sel-tab-btn" data-mode="all" onclick="selectByMode('all')">
+        <div style="font-size:16px;margin-bottom:4px">🔵</div>
+        <div>الكل</div>
+        <div style="font-size:10px;margin-top:2px;opacity:.75">\${students.length}</div>
+      </button>
+      <button class="sel-tab-btn" data-mode="cleared" onclick="selectByMode('cleared')">
+        <div style="font-size:16px;margin-bottom:4px">✅</div>
+        <div>المكتملون</div>
+        <div style="font-size:10px;margin-top:2px;opacity:.75">\${_dCntCleared}</div>
+      </button>
+      <button class="sel-tab-btn" data-mode="pending" onclick="selectByMode('pending')">
+        <div style="font-size:16px;margin-bottom:4px">⏳</div>
+        <div>قيد الإجراء</div>
+        <div style="font-size:10px;margin-top:2px;opacity:.75">\${_dCntPending}</div>
+      </button>
+    </div>
   </div>`;
 
   list.innerHTML = deptSelAllHtml + students.map(s => {
@@ -3513,7 +3611,7 @@ async function handleDeanAction(action, studentId){
     H.toast('✓ تم التحديث', 'success');
   }
   else if(action === 'reset-all'){
-    if(!confirm('تصفير جميع براءات الذمة لهذا الطالب؟')) return;
+    showConfirmDialog('🗑️ تأكيد التصفير', 'سيتم تصفير جميع براءات الذمة لهذا الطالب. هل أنت متأكد؟', 'تصفير', 'إلغاء', 'danger', async () => {
     const update = {
       affairs: false, affairs_at: null, affairs_by: null,
       finance: false, finance_at: null, finance_by: null,
@@ -3525,16 +3623,17 @@ async function handleDeanAction(action, studentId){
     Object.assign(c, update);
     await H.logActivity('reset_clearance', `تصفير براءة ذمة (${actor})`, studentId);
     H.toast('تم التصفير', 'warn');
+    openDeanStudentModal(studentId); doDeanRender();
+    }); // end showConfirmDialog
   }
   else if(action === 'reset-account'){
-    if(!confirm(`⚠️ تأكيد تصفير حساب الطالب؟\n\nسيتم حذف كلمة المرور واسم الأم.`)) return;
+    showConfirmDialog('🔐 تأكيد التصفير', 'سيتم حذف كلمة المرور واسم الأم لهذا الطالب.', 'تصفير الحساب', 'إلغاء', 'danger', async () => {
     await resetStudentAccount(studentId);
     await H.logActivity('reset_account', `تصفير حساب طالب (${actor})`, studentId);
     H.toast('✓ تم تصفير الحساب', 'success');
+    openDeanStudentModal(studentId); doDeanRender();
+    }); // end showConfirmDialog
   }
-  
-  openDeanStudentModal(studentId);
-  doDeanRender();
 }
 
 async function renderDeanAccounts(){
@@ -3632,8 +3731,7 @@ function renderAccountsList(){
 }
 
 async function resetAllStudentAccounts(){
-  if(!confirm('⚠️ سيتم حذف جميع حسابات الطلبة!\nالطلبة سيحتاجون إعادة تسجيل حساباتهم.')) return;
-  if(!confirm('تأكيد نهائي؟')) return;
+  showConfirmDialog('🗑️ تصفير جميع الحسابات', 'سيتم حذف جميع حسابات الطلبة. الطلبة سيحتاجون إعادة تسجيل حساباتهم.', 'تصفير الكل', 'إلغاء', 'danger', async () => {
   const fb = window.__fb;
   const snap = await fb.getDocs(fb.collection(STATE.db, 'students_auth'));
   let batch = fb.writeBatch(STATE.db);
@@ -3647,6 +3745,7 @@ async function resetAllStudentAccounts(){
   await H.logActivity('reset_all_accounts', 'تصفير جميع حسابات الطلبة', null);
   H.toast('✓ تم التصفير', 'success');
   renderDeanAccounts();
+  }); // end showConfirmDialog
 }
 
 function renderDeanResults(){
@@ -3941,8 +4040,7 @@ async function handleStudentsUpload(file){
 }
 
 async function resetAllClearances(){
-  if(!confirm('⚠️ سيتم حذف جميع براءات الذمة!')) return;
-  if(!confirm('تأكيد نهائي؟')) return;
+  showConfirmDialog('🗑️ تصفير براءات الذمة', '⚠️ سيتم حذف جميع براءات الذمة لجميع الطلبة. هذا الإجراء لا يمكن التراجع عنه!', 'تصفير الكل', 'إلغاء', 'danger', async () => {
   const fb = window.__fb;
   const snap = await fb.getDocs(fb.collection(STATE.db, 'clearances'));
   let batch = fb.writeBatch(STATE.db);
@@ -3956,11 +4054,11 @@ async function resetAllClearances(){
   STATE.clearances = {};
   await H.logActivity('reset_all_clearances', 'تصفير براءات', null);
   H.toast('✓ تم', 'success');
+  }); // end showConfirmDialog
 }
 
 async function resetAllResults(){
-  if(!confirm('⚠️ سيتم حذف جميع النتائج!')) return;
-  if(!confirm('تأكيد نهائي؟')) return;
+  showConfirmDialog('🗑️ حذف جميع النتائج', '⚠️ سيتم حذف جميع النتائج المرفوعة. هذا الإجراء لا يمكن التراجع عنه!', 'حذف الكل', 'إلغاء', 'danger', async () => {
   const fb = window.__fb;
   const snap = await fb.getDocs(fb.collection(STATE.db, 'results'));
   let batch = fb.writeBatch(STATE.db);
@@ -3974,6 +4072,7 @@ async function resetAllResults(){
   STATE.results = {};
   await H.logActivity('reset_all_results', 'حذف نتائج', null);
   H.toast('✓ تم', 'success');
+  }); // end showConfirmDialog
 }
 
 async function renderDeanLog(){
