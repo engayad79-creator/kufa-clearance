@@ -1195,8 +1195,8 @@ function renderEntityView(entityKey){
 
   // Wire events
   $('searchInput').oninput = () => renderStudentsList(entityKey);
-  $('filterDept').onchange = () => renderStudentsList(entityKey);
-  $('filterPeriod').onchange = () => renderStudentsList(entityKey);
+  if($('filterDept')) $('filterDept').onchange = () => renderStudentsList(entityKey);
+  if($('filterPeriod')) $('filterPeriod').onchange = () => renderStudentsList(entityKey);
   document.querySelectorAll('.filter-chip').forEach(c => {
     c.onclick = () => {
       document.querySelectorAll('.filter-chip').forEach(x => x.classList.remove('active'));
