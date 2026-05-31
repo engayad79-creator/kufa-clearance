@@ -1242,16 +1242,8 @@ function toggleSelectAll(){
     // إلغاء تحديد الكل
     allIds.forEach(id => SELECTED_IDS.delete(id));
   } else {
-    // تحديد فقط من ليس لهم براءة ذمة
-    const entityKey = window._currentEntityKey || 'affairs';
-    const isDorms = entityKey === 'dorms';
-    allIds.forEach(id => {
-      const c = STATE.clearances[id] || {};
-      let hasCleared = isDorms
-        ? (c.dorms === true || c.dorms === 'not_applicable')
-        : !!c[entityKey];
-      if(!hasCleared) SELECTED_IDS.add(id);
-    });
+    // تحديد الكل
+    allIds.forEach(id => SELECTED_IDS.add(id));
   }
   // تحديث checkboxes البطاقات المرئية في الـ DOM
   document.querySelectorAll('.student-result-card').forEach(card => {
@@ -1589,11 +1581,12 @@ function renderStudentsList(entityKey){
     }
     return `
       <div class="student-result-card" data-id="${s.id}"
-        style="display:flex;align-items:center;gap:10px;${isSelected ? 'border-color:var(--accent);background:rgba(16,185,129,.05)' : ''}">
+        style="display:flex;align-items:center;gap:10px;${isSelected ? 'border-color:var(--accent);background:rgba(16,185,129,.05)' : ''}"
+        onclick="openEntityStudentModal('${s.id}','${entityKey}')">
         <input type="checkbox" class="student-checkbox" data-id="${s.id}" ${isSelected ? 'checked' : ''}
           style="width:18px;height:18px;flex-shrink:0;cursor:pointer;accent-color:var(--accent)"
           onclick="event.stopPropagation();toggleStudentSelect('${s.id}','${entityKey}')"/>
-        <div style="flex:1;min-width:0" onclick="openEntityStudentModal('${s.id}','${entityKey}')">
+        <div style="flex:1;min-width:0">
           <div class="s-name">${escapeHtml(s.name)}</div>
           <div class="s-meta">
             <span>🏫 ${escapeHtml(s.dept)}</span>
@@ -2375,11 +2368,12 @@ function renderDeptStudentsList(deptName){
       : '<span class="s-badge pending">⏳ قيد الإجراء</span>';
     return `
       <div class="student-result-card" data-id="${s.id}"
-        style="display:flex;align-items:center;gap:10px;${isSelected ? 'border-color:var(--accent);background:rgba(16,185,129,.05)' : ''}">
+        style="display:flex;align-items:center;gap:10px;${isSelected ? 'border-color:var(--accent);background:rgba(16,185,129,.05)' : ''}"
+        onclick="openEntityStudentModal('${s.id}','dept')">
         <input type="checkbox" class="student-checkbox" data-id="${s.id}" ${isSelected ? 'checked' : ''}
           style="width:18px;height:18px;flex-shrink:0;cursor:pointer;accent-color:var(--accent)"
           onclick="event.stopPropagation();toggleStudentSelect('${s.id}','dept')"/>
-        <div style="flex:1;min-width:0" onclick="openEntityStudentModal('${s.id}','dept')">
+        <div style="flex:1;min-width:0">
           <div class="s-name">${escapeHtml(s.name)}</div>
           <div class="s-meta">
             <span>📅 ${escapeHtml(s.period)}</span>
@@ -2549,9 +2543,7 @@ $('pwBack').onclick = () => hidePwScreen();
 $('pwInput').addEventListener('keydown', e => {
   if(e.key === 'Enter'){ e.preventDefault(); tryPassword(); }
 });
-$('logoutBtn').onclick = () => {
-  if(confirm('تسجيل الخروج؟')) logout();
-};
+$('logoutBtn').onclick = () => logout();
 $('changePwBtn').onclick = showChangePassword;
 $('modalClose').onclick = () => {
   $('modal').classList.remove('show');
