@@ -1564,14 +1564,7 @@ function renderStudentsList(entityKey){
   const allSelected = students.length > 0 && students.every(s => SELECTED_IDS.has(s.id));
   const someSelected = students.some(s => SELECTED_IDS.has(s.id));
 
-  const selAllHtml = `<div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--panel);border-radius:10px;margin-bottom:8px;cursor:pointer" onclick="toggleSelectAll()">
-    <input type="checkbox" id="checkSelectAll" style="width:18px;height:18px;cursor:pointer;accent-color:var(--accent)"
-      ${allSelected ? 'checked' : ''} onclick="event.stopPropagation()"/>
-    <span style="font-size:13px;font-weight:700">تحديد الكل (${students.length})</span>
-    ${SELECTED_IDS.size > 0 ? `<span style="font-size:11px;color:var(--accent);margin-right:auto">✓ ${SELECTED_IDS.size} محدد</span>` : ''}
-  </div>`;
-
-  list.innerHTML = selAllHtml + students.map(s => {
+  list.innerHTML = students.map(s => {
     const c = STATE.clearances[s.id] || {};
     const isSelected = SELECTED_IDS.has(s.id);
     let badge = '';
@@ -1585,20 +1578,15 @@ function renderStudentsList(entityKey){
     }
     return `
       <div class="student-result-card" data-id="${s.id}"
-        style="display:flex;align-items:center;gap:10px;${isSelected ? 'border-color:var(--accent);background:rgba(16,185,129,.05)' : ''}">
-        <div style="flex-shrink:0;padding:4px" onclick="event.stopPropagation();toggleStudentSelect('${s.id}','${entityKey}')">
-          <input type="checkbox" class="student-checkbox" data-id="${s.id}" ${isSelected ? 'checked' : ''}
-            style="width:18px;height:18px;cursor:pointer;accent-color:var(--accent);pointer-events:none"/>
+        style="${isSelected ? 'border-color:var(--accent);background:rgba(16,185,129,.05)' : ''}"
+        onclick="openEntityStudentModal('${s.id}','${entityKey}')">
+        <div class="s-name">${escapeHtml(s.name)}</div>
+        <div class="s-meta">
+          <span>🏫 ${escapeHtml(s.dept)}</span>
+          <span>📅 ${escapeHtml(s.period)}</span>
+          ${s.status && s.status !== 'منتظم' ? `<span>📚 ${escapeHtml(s.status)}</span>` : ''}
         </div>
-        <div style="flex:1;min-width:0;cursor:pointer" onclick="openEntityStudentModal('${s.id}','${entityKey}')">
-          <div class="s-name">${escapeHtml(s.name)}</div>
-          <div class="s-meta">
-            <span>🏫 ${escapeHtml(s.dept)}</span>
-            <span>📅 ${escapeHtml(s.period)}</span>
-            ${s.status && s.status !== 'منتظم' ? `<span>📚 ${escapeHtml(s.status)}</span>` : ''}
-          </div>
-          <div class="s-status-badges">${badge}</div>
-        </div>
+        <div class="s-status-badges">${badge}</div>
       </div>
     `;
   }).join('');
@@ -2357,14 +2345,7 @@ function renderDeptStudentsList(deptName){
   const allSelected = students.every(s => SELECTED_IDS.has(s.id));
   const someSelected = students.some(s => SELECTED_IDS.has(s.id));
 
-  const deptSelAllHtml = `<div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--panel);border-radius:10px;margin-bottom:8px;cursor:pointer" onclick="toggleSelectAll()">
-    <input type="checkbox" id="checkSelectAll" style="width:18px;height:18px;cursor:pointer;accent-color:var(--accent)"
-      ${allSelected ? 'checked' : ''} onclick="event.stopPropagation()"/>
-    <span style="font-size:13px;font-weight:700">تحديد الكل (${students.length})</span>
-    ${SELECTED_IDS.size > 0 ? `<span style="font-size:11px;color:var(--accent);margin-right:auto">✓ ${SELECTED_IDS.size} محدد</span>` : ''}
-  </div>`;
-
-  list.innerHTML = deptSelAllHtml + students.map(s => {
+  list.innerHTML = students.map(s => {
     const c = STATE.clearances[s.id] || {};
     const isSelected = SELECTED_IDS.has(s.id);
     const badge = c.dept
@@ -2372,28 +2353,17 @@ function renderDeptStudentsList(deptName){
       : '<span class="s-badge pending">⏳ قيد الإجراء</span>';
     return `
       <div class="student-result-card" data-id="${s.id}"
-        style="display:flex;align-items:center;gap:10px;${isSelected ? 'border-color:var(--accent);background:rgba(16,185,129,.05)' : ''}">
-        <div style="flex-shrink:0;padding:4px" onclick="event.stopPropagation();toggleStudentSelect('${s.id}','dept')">
-          <input type="checkbox" class="student-checkbox" data-id="${s.id}" ${isSelected ? 'checked' : ''}
-            style="width:18px;height:18px;cursor:pointer;accent-color:var(--accent);pointer-events:none"/>
+        style="${isSelected ? 'border-color:var(--accent);background:rgba(16,185,129,.05)' : ''}"
+        onclick="openEntityStudentModal('${s.id}','dept')">
+        <div class="s-name">${escapeHtml(s.name)}</div>
+        <div class="s-meta">
+          <span>📅 ${escapeHtml(s.period)}</span>
+          ${s.status && s.status !== 'منتظم' ? `<span>📚 ${escapeHtml(s.status)}</span>` : ''}
         </div>
-        <div style="flex:1;min-width:0;cursor:pointer" onclick="openEntityStudentModal('${s.id}','dept')">
-          <div class="s-name">${escapeHtml(s.name)}</div>
-          <div class="s-meta">
-            <span>📅 ${escapeHtml(s.period)}</span>
-            ${s.status && s.status !== 'منتظم' ? `<span>📚 ${escapeHtml(s.status)}</span>` : ''}
-          </div>
-          <div class="s-status-badges">${badge}</div>
-        </div>
+        <div class="s-status-badges">${badge}</div>
       </div>
     `;
   }).join('');
-
-  const selAll = $('checkSelectAll');
-  if(selAll){
-    selAll.checked = allSelected;
-    selAll.indeterminate = !allSelected && someSelected;
-  }
 }
 
 // === Wire up login screen ===
