@@ -1235,7 +1235,11 @@ function updateSelectionBar(){
 }
 
 function toggleSelectAll(){
-  const allIds = STATE._visibleStudents || [];
+  // اقرأ الطلبة المرئيين من الـ DOM أو من STATE
+  let allIds = STATE._visibleStudents || [];
+  if(allIds.length === 0){
+    allIds = Array.from(document.querySelectorAll('.student-checkbox')).map(c => c.dataset.id).filter(Boolean);
+  }
   if(allIds.length === 0){ updateSelectionBar(); return; }
   const allChecked = allIds.every(id => SELECTED_IDS.has(id));
   if(allChecked){
@@ -1581,12 +1585,12 @@ function renderStudentsList(entityKey){
     }
     return `
       <div class="student-result-card" data-id="${s.id}"
-        style="display:flex;align-items:center;gap:10px;${isSelected ? 'border-color:var(--accent);background:rgba(16,185,129,.05)' : ''}"
-        onclick="openEntityStudentModal('${s.id}','${entityKey}')">
-        <input type="checkbox" class="student-checkbox" data-id="${s.id}" ${isSelected ? 'checked' : ''}
-          style="width:18px;height:18px;flex-shrink:0;cursor:pointer;accent-color:var(--accent)"
-          onclick="event.stopPropagation();toggleStudentSelect('${s.id}','${entityKey}')"/>
-        <div style="flex:1;min-width:0">
+        style="display:flex;align-items:center;gap:10px;${isSelected ? 'border-color:var(--accent);background:rgba(16,185,129,.05)' : ''}">
+        <div style="flex-shrink:0;padding:4px" onclick="event.stopPropagation();toggleStudentSelect('${s.id}','${entityKey}')">
+          <input type="checkbox" class="student-checkbox" data-id="${s.id}" ${isSelected ? 'checked' : ''}
+            style="width:18px;height:18px;cursor:pointer;accent-color:var(--accent);pointer-events:none"/>
+        </div>
+        <div style="flex:1;min-width:0;cursor:pointer" onclick="openEntityStudentModal('${s.id}','${entityKey}')">
           <div class="s-name">${escapeHtml(s.name)}</div>
           <div class="s-meta">
             <span>🏫 ${escapeHtml(s.dept)}</span>
@@ -2368,12 +2372,12 @@ function renderDeptStudentsList(deptName){
       : '<span class="s-badge pending">⏳ قيد الإجراء</span>';
     return `
       <div class="student-result-card" data-id="${s.id}"
-        style="display:flex;align-items:center;gap:10px;${isSelected ? 'border-color:var(--accent);background:rgba(16,185,129,.05)' : ''}"
-        onclick="openEntityStudentModal('${s.id}','dept')">
-        <input type="checkbox" class="student-checkbox" data-id="${s.id}" ${isSelected ? 'checked' : ''}
-          style="width:18px;height:18px;flex-shrink:0;cursor:pointer;accent-color:var(--accent)"
-          onclick="event.stopPropagation();toggleStudentSelect('${s.id}','dept')"/>
-        <div style="flex:1;min-width:0">
+        style="display:flex;align-items:center;gap:10px;${isSelected ? 'border-color:var(--accent);background:rgba(16,185,129,.05)' : ''}">
+        <div style="flex-shrink:0;padding:4px" onclick="event.stopPropagation();toggleStudentSelect('${s.id}','dept')">
+          <input type="checkbox" class="student-checkbox" data-id="${s.id}" ${isSelected ? 'checked' : ''}
+            style="width:18px;height:18px;cursor:pointer;accent-color:var(--accent);pointer-events:none"/>
+        </div>
+        <div style="flex:1;min-width:0;cursor:pointer" onclick="openEntityStudentModal('${s.id}','dept')">
           <div class="s-name">${escapeHtml(s.name)}</div>
           <div class="s-meta">
             <span>📅 ${escapeHtml(s.period)}</span>
