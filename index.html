@@ -672,6 +672,11 @@ async function setPasswordRemote(role, pw){
     const fb = window.__fb;
     await fb.setDoc(fb.doc(STATE.db, 'passwords', role), { pw });
     setPasswordLocal(role, pw);
+    // تحديث كاش الباسوردات
+    const cached = localStorage.getItem('kufa_passwords_cache');
+    const pws = cached ? JSON.parse(cached) : {};
+    pws[role] = pw;
+    localStorage.setItem('kufa_passwords_cache', JSON.stringify(pws));
   } catch(e){ console.error('setPasswordRemote error', e); setPasswordLocal(role, pw); }
 }
 
@@ -737,11 +742,36 @@ function setConn(ok, text){
 async function seedStudentsIfEmpty(onProgress){
   const fb = window.__fb;
   const colRef = fb.collection(STATE.db, 'students');
-  const snap = await fb.getDocs(fb.query(colRef, fb.limit(1)));
+
+  // محاولة أولى من الخادم مباشرة (وليس الكاش)
+  let snap;
+  try {
+    snap = await fb.getDocs(fb.query(colRef, fb.limit(1)));
+  } catch(e) {
+    // فشل الاتصال - لا نرفع أي بيانات
+    console.warn('seedStudentsIfEmpty: No internet, skipping seed');
+    setConn(false, 'لا يوجد اتصال');
+    return false;
+  }
+
   if(snap.size > 0){
     console.log(`Firestore already has students`);
     return false;
   }
+
+  // تأكيد إضافي: انتظر ثانية ثم تحقق مرة أخرى
+  await new Promise(r => setTimeout(r, 1000));
+  try {
+    const snap2 = await fb.getDocs(fb.query(colRef, fb.limit(1)));
+    if(snap2.size > 0){
+      console.log(`Firestore already has students (2nd check)`);
+      return false;
+    }
+  } catch(e) {
+    console.warn('seedStudentsIfEmpty: 2nd check failed, skipping seed');
+    return false;
+  }
+
   console.log('Seeding students...');
   setConn('syncing', 'رفع قائمة الطلبة...');
   const BATCH_SIZE = 100; // Smaller batches for slower mobile networks
@@ -767,21 +797,37 @@ async function seedStudentsIfEmpty(onProgress){
 
 // Load all students into STATE
 async function loadStudents(){
+  // تحقق من localStorage أولاً (توفير القراءات)
+  const cached = localStorage.getItem('kufa_students_cache');
+  const cacheTime = localStorage.getItem('kufa_students_cache_time');
+  const ONE_HOUR = 60 * 60 * 1000;
+  if(cached && cacheTime && (Date.now() - parseInt(cacheTime)) < ONE_HOUR){
+    STATE.students = JSON.parse(cached);
+    console.log(`Loaded ${Object.keys(STATE.students).length} students (cache)`);
+    return;
+  }
   const fb = window.__fb;
   const colRef = fb.collection(STATE.db, 'students');
   const snap = await fb.getDocs(colRef);
   STATE.students = {};
   snap.forEach(d => { STATE.students[d.id] = d.data(); });
-  console.log(`Loaded ${Object.keys(STATE.students).length} students`);
+  // حفظ في localStorage
+  try {
+    localStorage.setItem('kufa_students_cache', JSON.stringify(STATE.students));
+    localStorage.setItem('kufa_students_cache_time', Date.now().toString());
+  } catch(e){}
+  console.log(`Loaded ${Object.keys(STATE.students).length} students (firebase)`);
 }
 
-// Load clearances
+// Load clearances - كاش في الجلسة فقط (لا نحفظ في localStorage لأنها تتغير كثيراً)
 async function loadClearances(){
+  if(STATE._clearancesLoaded) return; // لا تعيد التحميل في نفس الجلسة
   const fb = window.__fb;
   const colRef = fb.collection(STATE.db, 'clearances');
   const snap = await fb.getDocs(colRef);
   STATE.clearances = {};
   snap.forEach(d => { STATE.clearances[d.id] = d.data(); });
+  STATE._clearancesLoaded = true;
 }
 
 // Load results
@@ -795,13 +841,31 @@ async function loadResults(){
 
 // Load passwords from Firestore
 async function loadPasswords(){
+  // تحميل من localStorage أولاً
+  const cached = localStorage.getItem('kufa_passwords_cache');
+  if(cached){
+    STATE.passwords = JSON.parse(cached);
+    STATE.pwLoaded = true;
+    // تحديث من Firebase في الخلفية بدون انتظار
+    _refreshPasswordsFromFirebase();
+    return;
+  }
+  // أول مرة - جلب من Firebase
+  await _refreshPasswordsFromFirebase();
+}
+
+async function _refreshPasswordsFromFirebase(){
   try {
     const fb = window.__fb;
-    const colRef = fb.collection(STATE.db, 'passwords');
-    const snap = await fb.getDocs(colRef);
-    STATE.passwords = {};
-    snap.forEach(d => { STATE.passwords[d.id] = d.data().pw; });
-  } catch(e){ STATE.passwords = {}; console.warn('loadPasswords error', e); }
+    const snap = await fb.getDocs(fb.collection(STATE.db, 'passwords'));
+    const pws = {};
+    snap.forEach(d => { pws[d.id] = d.data().pw; });
+    if(Object.keys(pws).length > 0){
+      STATE.passwords = pws;
+      STATE.pwLoaded = true;
+      localStorage.setItem('kufa_passwords_cache', JSON.stringify(pws));
+    }
+  } catch(e){ console.warn('_refreshPasswordsFromFirebase error', e); }
 }
 
 // Get/create clearance record for a student
@@ -931,13 +995,29 @@ function showPwScreen(role){
 async function tryPassword(){
   const role = STATE.role;
   const entered = $('pwInput').value.trim();
-  // دائماً اجلب من Firebase للحصول على أحدث باسورد
-  try {
-    const fb = window.__fb;
-    const snap = await fb.getDocs(fb.collection(STATE.db, 'passwords'));
-    STATE.passwords = {};
-    snap.forEach(d => { STATE.passwords[d.id] = d.data().pw; });
-  } catch(e){ if(!STATE.passwords) STATE.passwords = {}; }
+  // جلب الباسورد من الكاش أو Firebase إذا لم يكن محملاً
+  if(!STATE.pwLoaded){
+    const cached = localStorage.getItem('kufa_passwords_cache');
+    if(cached){
+      STATE.passwords = JSON.parse(cached);
+      STATE.pwLoaded = true;
+    } else {
+      $('pwSubmit').disabled = true;
+      $('pwSubmit').textContent = '⏳ جاري التحقق...';
+      try {
+        const fb = window.__fb;
+        const snap = await fb.getDocs(fb.collection(STATE.db, 'passwords'));
+        STATE.passwords = {};
+        snap.forEach(d => { STATE.passwords[d.id] = d.data().pw; });
+        if(Object.keys(STATE.passwords).length > 0){
+          STATE.pwLoaded = true;
+          localStorage.setItem('kufa_passwords_cache', JSON.stringify(STATE.passwords));
+        }
+      } catch(e){ if(!STATE.passwords) STATE.passwords = {}; }
+      $('pwSubmit').disabled = false;
+      $('pwSubmit').textContent = '🔓 دخول';
+    }
+  }
   const correct = getPassword(role);
   if(entered === correct){
     enterApp();
@@ -994,10 +1074,22 @@ async function enterApp(){
       $('seedProgressText').textContent = 'جاري تحميل البيانات...';
       $('seedProgressFill').style.width = '100%';
     }
-    await loadStudents();
-    await loadClearances();
-    await loadResults();
-    await loadPasswords();
+    try {
+      await loadStudents();
+      await loadClearances();
+      await loadResults();
+      await loadPasswords();
+    } catch(e) {
+      const appBody = $('appBody');
+      if(appBody) appBody.innerHTML = `
+        <div style="text-align:center;padding:30px;background:var(--panel);border-radius:14px;margin-top:20px;border:2px solid var(--red)">
+          <div style="font-size:48px">📡</div>
+          <div style="font-size:16px;font-weight:700;color:var(--red);margin:10px 0">لا يوجد اتصال بالإنترنت</div>
+          <div style="font-size:13px;color:var(--muted);margin-bottom:16px">يرجى التحقق من الاتصال وإعادة المحاولة</div>
+          <button onclick="location.reload()" style="background:var(--accent);color:#fff;border:none;border-radius:10px;padding:10px 24px;font-size:14px;cursor:pointer;font-family:inherit">🔄 إعادة المحاولة</button>
+        </div>`;
+      return;
+    }
   }
 
   // Render the app body based on role
@@ -1019,6 +1111,8 @@ function logout(){
       STATE.unsubscribers.forEach(u => u());
       STATE.unsubscribers = [];
       STATE.role = null;
+  STATE.pwLoaded = false; // إعادة تحميل الباسورد في الدخول القادم
+  STATE._clearancesLoaded = false;
       STATE.currentStudent = null;
       $('app').classList.remove('show');
       hidePwScreen();
@@ -2730,22 +2824,27 @@ $('pwForgot').onclick = async () => {
   if(!role) return;
   const info = ROLE_INFO[role] || { title: role };
   showConfirmDialog(
-    '🔑 استعادة كلمة المرور',
-    `سيتم إعادة تعيين كلمة مرور <b>${info.title}</b> إلى <b>1234</b> مؤقتاً.<br/>يرجى تغييرها فور الدخول.`,
-    'تأكيد', 'إلغاء', 'warning',
+    '🔑 نسيت كلمة المرور؟',
+    `سيتم إرسال طلب استعادة كلمة المرور لـ <b>${info.title}</b> إلى معاون العميد.<br/>سيقوم بإعادة تعيينها إلى <b>1234</b> قريباً.`,
+    'إرسال الطلب', 'إلغاء', 'warning',
     async () => {
       try {
         const fb = window.__fb;
-        await fb.setDoc(fb.doc(STATE.db, 'passwords', role), { pw: '1234' });
-        if(STATE.passwords) STATE.passwords[role] = '1234';
-        $('pwError').textContent = '';
+        const nowStr = new Date().toLocaleString('ar-IQ');
+        await fb.setDoc(fb.doc(STATE.db, 'pw_reset_requests', role), {
+          role,
+          title: info.title,
+          requested_at: nowStr,
+          status: 'pending'
+        });
         $('pwError').style.color = '#10b981';
-        $('pwError').textContent = '✅ تم الإعادة إلى 1234 - ادخل الآن';
-        $('pwInput').value = '';
-        $('pwInput').focus();
-        setTimeout(() => { $('pwError').style.color = '#ef4444'; }, 3000);
+        $('pwError').textContent = '✅ تم إرسال الطلب - انتظر معاون العميد';
+        setTimeout(() => {
+          $('pwError').style.color = '#ef4444';
+          $('pwError').textContent = '';
+        }, 5000);
       } catch(e) {
-        $('pwError').textContent = '❌ فشل الاتصال بالخادم';
+        $('pwError').textContent = '❌ فشل الاتصال - حاول مرة أخرى';
       }
     }
   );
@@ -4218,6 +4317,11 @@ function renderDeanSettings(){
       <button class="btn btn-secondary btn-block" id="exportCodesBtn" style="margin-top:8px">🔐 تصدير الأكواد السرية</button>
     </div>
 
+    <div class="section" id="pwResetRequestsSection">
+      <div class="section-title" style="color:var(--gold)">🔑 طلبات استعادة كلمة المرور</div>
+      <div id="pwResetRequestsList" style="font-size:13px;color:var(--muted)">جاري التحميل...</div>
+    </div>
+
     <div class="section">
       <div class="section-title">⚠️ منطقة خطرة</div>
       <button class="btn btn-danger btn-block" id="resetAllClearancesBtn">🔄 تصفير جميع براءات الذمة</button>
@@ -4231,7 +4335,62 @@ function renderDeanSettings(){
   $('resetAllClearancesBtn').onclick = resetAllClearances;
   $('resetAllResultsBtn').onclick = resetAllResults;
   $('resetAllPasswordsBtn').onclick = resetAllPasswords;
+
+  // تحميل طلبات استعادة كلمة المرور
+  loadPwResetRequests();
 }
+
+async function loadPwResetRequests(){
+  const listEl = $('pwResetRequestsList');
+  if(!listEl) return;
+  try {
+    const fb = window.__fb;
+    const snap = await fb.getDocs(fb.collection(STATE.db, 'pw_reset_requests'));
+    const requests = [];
+    snap.forEach(d => requests.push({ id: d.id, ...d.data() }));
+    const pending = requests.filter(r => r.status === 'pending');
+
+    if(pending.length === 0){
+      listEl.innerHTML = '<div style="color:var(--muted);font-size:12px;padding:8px 0">لا توجد طلبات معلقة ✅</div>';
+      return;
+    }
+
+    listEl.innerHTML = pending.map(r => `
+      <div style="background:rgba(251,191,36,.08);border:1px solid rgba(251,191,36,.25);border-radius:10px;padding:10px 12px;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between">
+        <div>
+          <div style="font-weight:700;color:var(--text)">${r.title || r.role}</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:2px">🕐 ${r.requested_at || ''}</div>
+        </div>
+        <button onclick="resetRolePassword('${r.role}','${r.id}')"
+          style="background:var(--accent);color:#fff;border:none;border-radius:8px;padding:7px 14px;font-size:12px;cursor:pointer;font-family:inherit;font-weight:700">
+          🔑 إعادة إلى 1234
+        </button>
+      </div>
+    `).join('');
+  } catch(e){
+    if(listEl) listEl.innerHTML = '<div style="color:var(--red);font-size:12px">❌ فشل التحميل</div>';
+  }
+}
+
+window.resetRolePassword = async function(role, reqId){
+  showConfirmDialog(
+    '🔑 إعادة تعيين كلمة المرور',
+    `سيتم إعادة كلمة مرور <b>${role}</b> إلى <b>1234</b>`,
+    'تأكيد', 'إلغاء', 'danger',
+    async () => {
+      try {
+        const fb = window.__fb;
+        await fb.setDoc(fb.doc(STATE.db, 'passwords', role), { pw: '1234' });
+        await fb.setDoc(fb.doc(STATE.db, 'pw_reset_requests', reqId), { status: 'done' }, { merge: true });
+        if(STATE.passwords) STATE.passwords[role] = '1234';
+        toast('✅ تم إعادة كلمة المرور إلى 1234', 'success');
+        loadPwResetRequests(); // تحديث القائمة
+      } catch(e){
+        toast('❌ حدث خطأ: ' + e.message, 'error');
+      }
+    }
+  );
+};
 
 function exportClearancesReport(){
   const wb = XLSX.utils.book_new();
