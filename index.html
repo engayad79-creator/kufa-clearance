@@ -4078,6 +4078,7 @@ async function resetAllPasswords(){
   showConfirmDialog(
     '🔑 إعادة تعيين كلمات المرور',
     'سيتم إعادة تعيين كلمات مرور جميع الجهات إلى <b>1234</b>.<br/>هل أنت متأكد؟',
+    'تأكيد', 'إلغاء', 'danger',
     async () => {
       try {
         const fb = window.__fb;
