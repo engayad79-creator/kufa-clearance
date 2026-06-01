@@ -2482,29 +2482,29 @@ function renderDeptStudentsList(deptName){
         <div style="width:6px;height:6px;border-radius:50%;background:var(--purple);box-shadow:0 0 6px var(--purple)"></div>
         <span style="font-size:11px;color:var(--text);font-weight:800;letter-spacing:.5px">تحديد سريع</span>
       </div>
-      \${SELECTED_IDS.size > 0 ?
-        \`<div style="display:flex;align-items:center;gap:6px;background:rgba(16,185,129,.15);border:1px solid rgba(16,185,129,.3);padding:4px 12px;border-radius:20px">
-          <span style="font-size:10px;color:var(--accent);font-weight:800">✓ \${SELECTED_IDS.size} محدد</span>
+      ${SELECTED_IDS.size > 0 ?
+        `<div style="display:flex;align-items:center;gap:6px;background:rgba(16,185,129,.15);border:1px solid rgba(16,185,129,.3);padding:4px 12px;border-radius:20px">
+          <span style="font-size:10px;color:var(--accent);font-weight:800">✓ ${SELECTED_IDS.size} محدد</span>
           <button onclick="clearAllSelection()" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:12px;padding:0;line-height:1">✕</button>
-        </div>\` :
-        \`<span style="font-size:10px;color:var(--muted)">\${students.length} طالب</span>\`
+        </div>` :
+        `<span style="font-size:10px;color:var(--muted)">${students.length} طالب</span>`
       }
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
       <button class="sel-tab-btn" data-mode="all" onclick="selectByMode('all')">
         <div style="font-size:16px;margin-bottom:4px">🔵</div>
         <div>الكل</div>
-        <div style="font-size:10px;margin-top:2px;opacity:.75">\${students.length}</div>
+        <div style="font-size:10px;margin-top:2px;opacity:.75">${students.length}</div>
       </button>
       <button class="sel-tab-btn" data-mode="cleared" onclick="selectByMode('cleared')">
         <div style="font-size:16px;margin-bottom:4px">✅</div>
         <div>المكتملون</div>
-        <div style="font-size:10px;margin-top:2px;opacity:.75">\${_dCntCleared}</div>
+        <div style="font-size:10px;margin-top:2px;opacity:.75">${_dCntCleared}</div>
       </button>
       <button class="sel-tab-btn" data-mode="pending" onclick="selectByMode('pending')">
         <div style="font-size:16px;margin-bottom:4px">⏳</div>
         <div>قيد الإجراء</div>
-        <div style="font-size:10px;margin-top:2px;opacity:.75">\${_dCntPending}</div>
+        <div style="font-size:10px;margin-top:2px;opacity:.75">${_dCntPending}</div>
       </button>
     </div>
   </div>`;
