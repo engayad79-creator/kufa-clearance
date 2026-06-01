@@ -647,7 +647,7 @@ function $(id){ return document.getElementById(id); }
 function escapeHtml(s){
   return String(s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
-function toast(msg, type){
+window.toast = function toast(msg, type){
   const t = $('toast');
   t.className = 'toast' + (type ? ' '+type : '');
   t.textContent = msg;
@@ -839,7 +839,7 @@ function checkClearance(studentId){
 }
 
 // Activity log
-async function logActivity(action, details, studentId){
+window.logActivity = async function logActivity(action, details, studentId){
   if(!STATE.fbReady) return;
   const fb = window.__fb;
   try {
