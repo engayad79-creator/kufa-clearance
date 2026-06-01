@@ -620,6 +620,7 @@ const STATE = {
 };
 
 const DEPTS = SEED_DEPTS;
+window.DEPTS = DEPTS;
 const STUDENTS_SEED = SEED_STUDENTS;
 
 const ROLE_INFO = {
@@ -4082,8 +4083,9 @@ window.resetAllPasswords = async function resetAllPasswords(){
     async () => {
       try {
         const fb = window.__fb;
+        const _depts = window.DEPTS || [];
         const roles = ['affairs', 'finance', 'dorms', 'dean', 'dept',
-          ...DEPTS.map(d => 'dept_' + d)
+          ..._depts.map(d => 'dept_' + d)
         ];
         const batch = fb.writeBatch(STATE.db);
         roles.forEach(role => {
