@@ -920,9 +920,18 @@ function showPwScreen(role){
   setTimeout(()=>$('pwInput').focus(), 100);
 }
 
-function tryPassword(){
+async function tryPassword(){
   const role = STATE.role;
   const entered = $('pwInput').value.trim();
+  // إذا لم تُحمَّل الباسوردات بعد، أعد المحاولة من Firebase
+  if(!STATE.passwords){
+    try {
+      const fb = window.__fb;
+      const snap = await fb.getDocs(fb.collection(STATE.db, 'passwords'));
+      STATE.passwords = {};
+      snap.forEach(d => { STATE.passwords[d.id] = d.data().pw; });
+    } catch(e){ STATE.passwords = {}; }
+  }
   const correct = getPassword(role);
   if(entered === correct){
     enterApp();
@@ -2699,7 +2708,15 @@ applyHashRouting();
 // Re-apply if hash changes (rare but possible)
 window.addEventListener('hashchange', () => location.reload());
 
-
+// تحميل الباسوردات من Firebase مبكراً قبل شاشة الدخول
+(async () => {
+  try {
+    const fb = window.__fb;
+    const snap = await fb.getDocs(fb.collection(STATE.db, 'passwords'));
+    STATE.passwords = {};
+    snap.forEach(d => { STATE.passwords[d.id] = d.data().pw; });
+  } catch(e){ STATE.passwords = {}; }
+})();
 
 $('pwSubmit').onclick = tryPassword;
 $('pwBack').onclick = () => hidePwScreen();
@@ -3969,6 +3986,7 @@ function renderDeanStudents(){
       <div class="section-title">⚠️ منطقة خطرة</div>
       <button class="btn btn-danger btn-block" id="resetAllClearancesBtn">🔄 تصفير جميع براءات الذمة</button>
       <button class="btn btn-danger btn-block" id="resetAllResultsBtn" style="margin-top:8px">🗑️ حذف جميع النتائج</button>
+      <button class="btn btn-danger btn-block" id="resetAllPasswordsBtn" style="margin-top:8px">🔑 إعادة تعيين جميع كلمات المرور إلى 1234</button>
     </div>
   `;
   $('downloadStudentsTemplateBtn').onclick = downloadStudentsAsExcel;
@@ -3976,6 +3994,7 @@ function renderDeanStudents(){
   $('studentsFile').onchange = (e) => handleStudentsUpload(e.target.files[0]);
   $('resetAllClearancesBtn').onclick = resetAllClearances;
   $('resetAllResultsBtn').onclick = resetAllResults;
+  $('resetAllPasswordsBtn').onclick = resetAllPasswords;
 }
 
 function downloadStudentsAsExcel(){
@@ -4057,6 +4076,35 @@ async function handleStudentsUpload(file){
     status.innerHTML = `<div style="color:var(--red);font-size:12px">⚠️ ${H.escapeHtml(err.message)}</div>`;
   }
   $('studentsFile').value = '';
+}
+
+async function resetAllPasswords(){
+  showConfirmDialog(
+    '🔑 إعادة تعيين كلمات المرور',
+    'سيتم إعادة تعيين كلمات مرور جميع الجهات إلى <b>1234</b>.<br/>هل أنت متأكد؟',
+    async () => {
+      try {
+        const fb = window.__fb;
+        const roles = ['affairs', 'finance', 'dorms', 'dean', 'dept',
+          ...DEPTS.map(d => 'dept_' + d)
+        ];
+        const batch = fb.writeBatch(STATE.db);
+        roles.forEach(role => {
+          batch.set(fb.doc(STATE.db, 'passwords', role), { pw: '1234' });
+        });
+        await batch.commit();
+        // تحديث STATE.passwords
+        STATE.passwords = {};
+        roles.forEach(r => { STATE.passwords[r] = '1234'; });
+        // مسح localStorage أيضاً
+        roles.forEach(r => localStorage.removeItem('kufa_clearance_pw_' + r));
+        toast('✅ تم إعادة تعيين جميع كلمات المرور إلى 1234', 'success');
+        logActivity('reset_passwords', 'إعادة تعيين جميع كلمات المرور', null);
+      } catch(e){
+        toast('❌ حدث خطأ: ' + e.message, 'error');
+      }
+    }
+  );
 }
 
 async function resetAllClearances(){
