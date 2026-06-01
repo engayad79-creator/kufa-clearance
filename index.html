@@ -655,10 +655,17 @@ function nowStamp(){
   return new Date().toLocaleString('en-GB', { hour12:false });
 }
 
-// Local storage password keys
-const PW_KEY = (role) => 'kufa_clearance_pw_' + role;
-function getPassword(role){ return localStorage.getItem(PW_KEY(role)) || '1234'; }
-function setPassword(role, pw){ localStorage.setItem(PW_KEY(role), pw); }
+// Passwords stored in Firestore (collection: passwords, doc: role)
+const PW_KEY = (role) => 'kufa_clearance_pw_' + role; // kept for fallback only
+function getPassword(role){ return STATE.passwords?.[role] || localStorage.getItem(PW_KEY(role)) || '1234'; }
+function setPasswordLocal(role, pw){ if(STATE.passwords) STATE.passwords[role] = pw; localStorage.setItem(PW_KEY(role), pw); }
+async function setPasswordRemote(role, pw){
+  try {
+    const fb = window.__fb;
+    await fb.setDoc(fb.doc(STATE.db, 'passwords', role), { pw });
+    setPasswordLocal(role, pw);
+  } catch(e){ console.error('setPasswordRemote error', e); setPasswordLocal(role, pw); }
+}
 
 // Normalize Arabic name for searching (remove diacritics, normalize hamza, etc.)
 function normalizeName(s){
@@ -776,6 +783,17 @@ async function loadResults(){
   const snap = await fb.getDocs(colRef);
   STATE.results = {};
   snap.forEach(d => { STATE.results[d.id] = d.data(); });
+}
+
+// Load passwords from Firestore
+async function loadPasswords(){
+  try {
+    const fb = window.__fb;
+    const colRef = fb.collection(STATE.db, 'passwords');
+    const snap = await fb.getDocs(colRef);
+    STATE.passwords = {};
+    snap.forEach(d => { STATE.passwords[d.id] = d.data().pw; });
+  } catch(e){ STATE.passwords = {}; console.warn('loadPasswords error', e); }
 }
 
 // Get/create clearance record for a student
@@ -964,6 +982,7 @@ async function enterApp(){
     await loadStudents();
     await loadClearances();
     await loadResults();
+    await loadPasswords();
   }
 
   // Render the app body based on role
@@ -1101,7 +1120,7 @@ function showChangePassword(){
   document.body.appendChild(overlay);
   setTimeout(() => $('cpCurrent').focus(), 100);
 
-  const doSave = () => {
+  const doSave = async () => {
     const cur = $('cpCurrent').value;
     const newPw = $('cpNew').value;
     const confirmPw = $('cpConfirm').value;
@@ -1122,7 +1141,7 @@ function showChangePassword(){
       $('cpConfirm').focus();
       return;
     }
-    setPassword(STATE.role, newPw);
+    await setPasswordRemote(STATE.role, newPw);
     overlay.remove();
     toast('✅ تم تغيير كلمة المرور بنجاح', 'success');
     logActivity('change_password', 'تغيير كلمة المرور', null);
