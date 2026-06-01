@@ -1025,7 +1025,7 @@ function logout(){
   );
 }
 
-function showConfirmDialog(title, message, confirmText, cancelText, type, onConfirm){
+window.showConfirmDialog = function showConfirmDialog(title, message, confirmText, cancelText, type, onConfirm){
   // Remove any existing confirm dialog
   const existing = $('confirmDialog');
   if(existing) existing.remove();
@@ -3771,7 +3771,7 @@ function renderAccountsList(){
   });
 }
 
-async function resetAllStudentAccounts(){
+window.resetAllStudentAccounts = async function resetAllStudentAccounts(){
   showConfirmDialog('🗑️ تصفير جميع الحسابات', 'سيتم حذف جميع حسابات الطلبة. الطلبة سيحتاجون إعادة تسجيل حساباتهم.', 'تصفير الكل', 'إلغاء', 'danger', async () => {
   const fb = window.__fb;
   const snap = await fb.getDocs(fb.collection(STATE.db, 'students_auth'));
@@ -4074,7 +4074,7 @@ async function handleStudentsUpload(file){
   $('studentsFile').value = '';
 }
 
-async function resetAllPasswords(){
+window.resetAllPasswords = async function resetAllPasswords(){
   showConfirmDialog(
     '🔑 إعادة تعيين كلمات المرور',
     'سيتم إعادة تعيين كلمات مرور جميع الجهات إلى <b>1234</b>.<br/>هل أنت متأكد؟',
@@ -4104,7 +4104,7 @@ async function resetAllPasswords(){
   );
 }
 
-async function resetAllClearances(){
+window.resetAllClearances = async function resetAllClearances(){
   showConfirmDialog('🗑️ تصفير براءات الذمة', '⚠️ سيتم حذف جميع براءات الذمة لجميع الطلبة. هذا الإجراء لا يمكن التراجع عنه!', 'تصفير الكل', 'إلغاء', 'danger', async () => {
   const fb = window.__fb;
   const snap = await fb.getDocs(fb.collection(STATE.db, 'clearances'));
@@ -4122,7 +4122,7 @@ async function resetAllClearances(){
   }); // end showConfirmDialog
 }
 
-async function resetAllResults(){
+window.resetAllResults = async function resetAllResults(){
   showConfirmDialog('🗑️ حذف جميع النتائج', '⚠️ سيتم حذف جميع النتائج المرفوعة. هذا الإجراء لا يمكن التراجع عنه!', 'حذف الكل', 'إلغاء', 'danger', async () => {
   const fb = window.__fb;
   const snap = await fb.getDocs(fb.collection(STATE.db, 'results'));
