@@ -662,7 +662,7 @@ function nowStamp(){
 
 // Passwords stored in Firestore (collection: passwords, doc: role)
 const PW_KEY = (role) => 'kufa_clearance_pw_' + role; // kept for fallback only
-function getPassword(role){ return STATE.passwords?.[role] || localStorage.getItem(PW_KEY(role)) || '1234'; }
+function getPassword(role){ return STATE.passwords?.[role] || '1234'; }
 function setPasswordLocal(role, pw){ if(STATE.passwords) STATE.passwords[role] = pw; localStorage.setItem(PW_KEY(role), pw); }
 async function setPasswordRemote(role, pw){
   try {
