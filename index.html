@@ -523,6 +523,9 @@ body{
       <div id="pwError" style="color:#ef4444;font-size:12px;text-align:center;min-height:18px;margin-bottom:8px"></div>
       <button id="pwSubmit" style="width:100%;background:linear-gradient(135deg,#3b82f6,#2563eb);color:white;border:none;border-radius:12px;padding:13px;font-size:15px;font-weight:700;cursor:pointer;font-family:'Segoe UI',Tahoma,Arial,sans-serif;margin-bottom:8px">🔓 دخول</button>
       <button id="pwBack" style="width:100%;background:rgba(255,255,255,0.05);border:1px solid #334155;border-radius:12px;padding:12px;font-size:14px;color:#94a3b8;cursor:pointer;font-family:'Segoe UI',Tahoma,Arial,sans-serif">↩️ رجوع</button>
+      <div style="text-align:center;margin-top:10px">
+        <button id="pwForgot" style="background:none;border:none;color:#fbbf24;font-size:12px;cursor:pointer;font-family:inherit;text-decoration:underline">🔑 نسيت كلمة المرور؟</button>
+      </div>
       <div style="margin-top:12px;font-size:11px;color:#94a3b8;text-align:center">💡 كلمة المرور الافتراضية: <b style="color:#fbbf24">1234</b> · يمكنك تغييرها بعد الدخول من 🔑</div>
     </div>
   </div>
@@ -928,15 +931,13 @@ function showPwScreen(role){
 async function tryPassword(){
   const role = STATE.role;
   const entered = $('pwInput').value.trim();
-  // إذا لم تُحمَّل الباسوردات بعد، أعد المحاولة من Firebase
-  if(!STATE.passwords){
-    try {
-      const fb = window.__fb;
-      const snap = await fb.getDocs(fb.collection(STATE.db, 'passwords'));
-      STATE.passwords = {};
-      snap.forEach(d => { STATE.passwords[d.id] = d.data().pw; });
-    } catch(e){ STATE.passwords = {}; }
-  }
+  // دائماً اجلب من Firebase للحصول على أحدث باسورد
+  try {
+    const fb = window.__fb;
+    const snap = await fb.getDocs(fb.collection(STATE.db, 'passwords'));
+    STATE.passwords = {};
+    snap.forEach(d => { STATE.passwords[d.id] = d.data().pw; });
+  } catch(e){ if(!STATE.passwords) STATE.passwords = {}; }
   const correct = getPassword(role);
   if(entered === correct){
     enterApp();
@@ -2724,6 +2725,31 @@ window.addEventListener('hashchange', () => location.reload());
 })();
 
 $('pwSubmit').onclick = tryPassword;
+$('pwForgot').onclick = async () => {
+  const role = STATE.role;
+  if(!role) return;
+  const info = ROLE_INFO[role] || { title: role };
+  showConfirmDialog(
+    '🔑 استعادة كلمة المرور',
+    `سيتم إعادة تعيين كلمة مرور <b>${info.title}</b> إلى <b>1234</b> مؤقتاً.<br/>يرجى تغييرها فور الدخول.`,
+    'تأكيد', 'إلغاء', 'warning',
+    async () => {
+      try {
+        const fb = window.__fb;
+        await fb.setDoc(fb.doc(STATE.db, 'passwords', role), { pw: '1234' });
+        if(STATE.passwords) STATE.passwords[role] = '1234';
+        $('pwError').textContent = '';
+        $('pwError').style.color = '#10b981';
+        $('pwError').textContent = '✅ تم الإعادة إلى 1234 - ادخل الآن';
+        $('pwInput').value = '';
+        $('pwInput').focus();
+        setTimeout(() => { $('pwError').style.color = '#ef4444'; }, 3000);
+      } catch(e) {
+        $('pwError').textContent = '❌ فشل الاتصال بالخادم';
+      }
+    }
+  );
+};
 $('pwBack').onclick = () => hidePwScreen();
 $('pwInput').addEventListener('keydown', e => {
   if(e.key === 'Enter'){ e.preventDefault(); tryPassword(); }
