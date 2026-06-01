@@ -4083,9 +4083,10 @@ window.resetAllPasswords = async function resetAllPasswords(){
     async () => {
       try {
         const fb = window.__fb;
-        const _depts = window.DEPTS || [];
         const roles = ['affairs', 'finance', 'dorms', 'dean', 'dept',
-          ..._depts.map(d => 'dept_' + d)
+          'dept_ادارة مواد', 'dept_اطراف', 'dept_الكهرباء', 'dept_انتاج حيواني',
+          'dept_تمريض', 'dept_توحد', 'dept_صحة مجتمع', 'dept_صيدلة',
+          'dept_مختبرات', 'dept_ميكانيك الانتاج', 'dept_ميكانيك القدرة'
         ];
         const batch = fb.writeBatch(STATE.db);
         roles.forEach(role => {
