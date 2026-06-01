@@ -526,7 +526,7 @@ body{
       <div style="text-align:center;margin-top:10px">
         <button id="pwForgot" style="background:none;border:none;color:#fbbf24;font-size:12px;cursor:pointer;font-family:inherit;text-decoration:underline">🔑 نسيت كلمة المرور؟</button>
       </div>
-      <div style="margin-top:12px;font-size:11px;color:#94a3b8;text-align:center">💡 كلمة المرور الافتراضية: <b style="color:#fbbf24">1234</b> · يمكنك تغييرها بعد الدخول من 🔑</div>
+      <div style="margin-top:12px;font-size:11px;color:#94a3b8;text-align:center">💡 يمكنك تغيير كلمة المرور بعد الدخول من 🔑</div>
     </div>
   </div>
 
@@ -971,6 +971,39 @@ function hidePwScreen(){
   $('pwInput').value = '';
   $('pwError').textContent = '';
 }
+
+window.handlePwForgot = async function(){
+  const role = STATE.role;
+  if(!role){ alert('الرجاء اختيار الجهة أولاً'); return; }
+  const info = (window.ROLE_INFO && window.ROLE_INFO[role]) || { title: role };
+  window.showConfirmDialog(
+    '🔑 نسيت كلمة المرور؟',
+    `سيتم إرسال طلب استعادة كلمة المرور لـ <b>${info.title}</b> إلى معاون العميد.<br/>سيقوم بإعادة تعيين كلمة مرورك قريباً.`,
+    'إرسال الطلب', 'إلغاء', 'warning',
+    async () => {
+      try {
+        const fb = window.__fb;
+        if(!STATE.db) throw new Error('لا يوجد اتصال بقاعدة البيانات');
+        const nowStr = new Date().toLocaleString('ar-IQ');
+        await fb.setDoc(fb.doc(STATE.db, 'pw_reset_requests', role), {
+          role,
+          title: info.title,
+          requested_at: nowStr,
+          status: 'pending'
+        });
+        $('pwError').style.color = '#10b981';
+        $('pwError').textContent = '✅ تم إرسال الطلب - انتظر معاون العميد';
+        setTimeout(() => {
+          $('pwError').style.color = '#ef4444';
+          $('pwError').textContent = '';
+        }, 5000);
+      } catch(e) {
+        console.error('handlePwForgot error:', e);
+        $('pwError').textContent = '❌ ' + (e.message || 'فشل الاتصال');
+      }
+    }
+  );
+};
 
 function showPwScreen(role){
   STATE.role = role;
@@ -2819,36 +2852,7 @@ window.addEventListener('hashchange', () => location.reload());
 })();
 
 $('pwSubmit').onclick = tryPassword;
-$('pwForgot').onclick = async () => {
-  const role = STATE.role;
-  if(!role) return;
-  const info = ROLE_INFO[role] || { title: role };
-  showConfirmDialog(
-    '🔑 نسيت كلمة المرور؟',
-    `سيتم إرسال طلب استعادة كلمة المرور لـ <b>${info.title}</b> إلى معاون العميد.<br/>سيقوم بإعادة تعيينها إلى <b>1234</b> قريباً.`,
-    'إرسال الطلب', 'إلغاء', 'warning',
-    async () => {
-      try {
-        const fb = window.__fb;
-        const nowStr = new Date().toLocaleString('ar-IQ');
-        await fb.setDoc(fb.doc(STATE.db, 'pw_reset_requests', role), {
-          role,
-          title: info.title,
-          requested_at: nowStr,
-          status: 'pending'
-        });
-        $('pwError').style.color = '#10b981';
-        $('pwError').textContent = '✅ تم إرسال الطلب - انتظر معاون العميد';
-        setTimeout(() => {
-          $('pwError').style.color = '#ef4444';
-          $('pwError').textContent = '';
-        }, 5000);
-      } catch(e) {
-        $('pwError').textContent = '❌ فشل الاتصال - حاول مرة أخرى';
-      }
-    }
-  );
-};
+$('pwForgot').onclick = () => window.handlePwForgot();
 $('pwBack').onclick = () => hidePwScreen();
 $('pwInput').addEventListener('keydown', e => {
   if(e.key === 'Enter'){ e.preventDefault(); tryPassword(); }
@@ -3063,14 +3067,14 @@ function renderStudentFirstLogin(student){
       <div style="font-size:12px;color:var(--text);margin-bottom:12px;line-height:1.7">
         هذه أول مرة تستخدم النظام. أكمل الخطوات التالية لتأمين حسابك:
         <br/><br/>
-        <b>1. أدخل كلمة المرور الموحدة:</b> <span style="color:var(--gold);font-weight:700">1234</span><br/>
+        <b>1. أدخل كلمة المرور الموحدة التي حددها معاون العميد</b><br/>
         <b>2. اختر كلمة مرور جديدة خاصة بك</b><br/>
         <b>3. أدخل اسم والدتك</b> (للاستعادة لاحقاً)
       </div>
 
       <div class="form-group">
         <label class="form-label">🔐 كلمة المرور الموحدة:</label>
-        <input type="password" class="form-input" id="defaultPw" placeholder="1234" inputmode="numeric"/>
+        <input type="password" class="form-input" id="defaultPw" placeholder="كلمة المرور" inputmode="numeric"/>
       </div>
       <div class="form-group">
         <label class="form-label">🆕 كلمة مرور جديدة خاصة بك:</label>
@@ -4203,7 +4207,7 @@ async function handleStudentsUpload(file){
 window.resetAllPasswords = async function resetAllPasswords(){
   showConfirmDialog(
     '🔑 إعادة تعيين كلمات المرور',
-    'سيتم إعادة تعيين كلمات مرور جميع الجهات إلى <b>1234</b>.<br/>هل أنت متأكد؟',
+    'سيتم إعادة تعيين كلمات مرور جميع الجهات إلى الكلمة الافتراضية.<br/>هل أنت متأكد؟',
     'تأكيد', 'إلغاء', 'danger',
     async () => {
       try {
@@ -4223,7 +4227,7 @@ window.resetAllPasswords = async function resetAllPasswords(){
         roles.forEach(r => { STATE.passwords[r] = '1234'; });
         // مسح localStorage أيضاً
         roles.forEach(r => localStorage.removeItem('kufa_clearance_pw_' + r));
-        toast('✅ تم إعادة تعيين جميع كلمات المرور إلى 1234', 'success');
+        toast('✅ تم إعادة تعيين جميع كلمات المرور', 'success');
         logActivity('reset_passwords', 'إعادة تعيين جميع كلمات المرور', null);
       } catch(e){
         toast('❌ حدث خطأ: ' + e.message, 'error');
@@ -4326,7 +4330,7 @@ function renderDeanSettings(){
       <div class="section-title">⚠️ منطقة خطرة</div>
       <button class="btn btn-danger btn-block" id="resetAllClearancesBtn">🔄 تصفير جميع براءات الذمة</button>
       <button class="btn btn-danger btn-block" id="resetAllResultsBtn" style="margin-top:8px">🗑️ حذف جميع النتائج</button>
-      <button class="btn btn-danger btn-block" id="resetAllPasswordsBtn" style="margin-top:8px">🔑 إعادة تعيين جميع كلمات المرور إلى 1234</button>
+      <button class="btn btn-danger btn-block" id="resetAllPasswordsBtn" style="margin-top:8px">🔑 إعادة تعيين جميع كلمات المرور</button>
     </div>
   `;
   $('exportClearancesBtn').onclick = exportClearancesReport;
@@ -4363,7 +4367,7 @@ async function loadPwResetRequests(){
         </div>
         <button onclick="resetRolePassword('${r.role}','${r.id}')"
           style="background:var(--accent);color:#fff;border:none;border-radius:8px;padding:7px 14px;font-size:12px;cursor:pointer;font-family:inherit;font-weight:700">
-          🔑 إعادة إلى 1234
+          🔑 إعادة التعيين
         </button>
       </div>
     `).join('');
@@ -4375,7 +4379,7 @@ async function loadPwResetRequests(){
 window.resetRolePassword = async function(role, reqId){
   showConfirmDialog(
     '🔑 إعادة تعيين كلمة المرور',
-    `سيتم إعادة كلمة مرور <b>${role}</b> إلى <b>1234</b>`,
+    `سيتم إعادة تعيين كلمة مرور <b>${role}</b> إلى الكلمة الافتراضية`,
     'تأكيد', 'إلغاء', 'danger',
     async () => {
       try {
@@ -4383,7 +4387,7 @@ window.resetRolePassword = async function(role, reqId){
         await fb.setDoc(fb.doc(STATE.db, 'passwords', role), { pw: '1234' });
         await fb.setDoc(fb.doc(STATE.db, 'pw_reset_requests', reqId), { status: 'done' }, { merge: true });
         if(STATE.passwords) STATE.passwords[role] = '1234';
-        toast('✅ تم إعادة كلمة المرور إلى 1234', 'success');
+        toast('✅ تم إعادة تعيين كلمة المرور', 'success');
         loadPwResetRequests(); // تحديث القائمة
       } catch(e){
         toast('❌ حدث خطأ: ' + e.message, 'error');
