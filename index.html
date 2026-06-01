@@ -272,6 +272,70 @@ body{
 .blocked-msg .reason{font-size:13px;opacity:.95}
 
 /* Results display */
+/* ===== تصميم النتيجة المودرن ===== */
+.result-hero{
+  text-align:center;
+  padding:28px 16px 20px;
+  border-radius:20px;
+  margin-bottom:16px;
+  position:relative;
+  overflow:hidden;
+}
+.result-hero.pass{
+  background:linear-gradient(135deg,#064e3b,#065f46,#047857);
+  border:2px solid rgba(16,185,129,.4);
+}
+.result-hero.fail{
+  background:linear-gradient(135deg,#7f1d1d,#991b1b,#b91c1c);
+  border:2px solid rgba(239,68,68,.4);
+}
+.result-hero.makeup{
+  background:linear-gradient(135deg,#78350f,#92400e,#b45309);
+  border:2px solid rgba(245,158,11,.4);
+}
+.result-hero .confetti{font-size:36px;margin-bottom:8px;animation:bounce 1s infinite alternate}
+@keyframes bounce{from{transform:scale(1)}to{transform:scale(1.15)}}
+.result-hero .congrats{font-size:22px;font-weight:900;color:#fff;margin:4px 0}
+.result-hero .grade-badge{
+  display:inline-block;
+  background:rgba(255,255,255,.2);
+  border:2px solid rgba(255,255,255,.4);
+  border-radius:30px;
+  padding:6px 20px;
+  font-size:16px;
+  font-weight:700;
+  color:#fff;
+  margin-top:8px;
+}
+.result-hero .student-name-hero{
+  font-size:13px;
+  color:rgba(255,255,255,.7);
+  margin-top:6px;
+}
+.subjects-card{
+  background:var(--panel);
+  border:1.5px solid var(--border);
+  border-radius:16px;
+  overflow:hidden;
+  margin-bottom:12px;
+}
+.subjects-card-header{
+  background:var(--panel-2);
+  padding:10px 14px;
+  font-weight:700;
+  font-size:13px;
+  color:var(--gold);
+  border-bottom:1px solid var(--border);
+}
+.subject-row{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  padding:10px 14px;
+  border-bottom:1px solid rgba(255,255,255,.05);
+  font-size:13px;
+}
+.subject-row:last-child{border-bottom:none}
 .result-table{
   width:100%;border-collapse:collapse;margin-top:10px;
   font-size:12px;
@@ -1062,6 +1126,17 @@ async function tryPassword(){
 }
 
 async function enterApp(){
+  // تسجيل آخر دخول
+  try {
+    const fb = window.__fb;
+    if(STATE.db && STATE.role){
+      await fb.setDoc(fb.doc(STATE.db, 'last_login', STATE.role), {
+        role: STATE.role,
+        time: new Date().toLocaleString('ar-IQ'),
+        timestamp: Date.now()
+      });
+    }
+  } catch(e){}
   hidePwScreen();
   $('loginScreen').style.display = 'none';
   $('app').classList.add('show');
@@ -2068,6 +2143,7 @@ function renderDeptView(deptName){
       <button class="tab" data-tab="results">📥 رفع النتائج</button>
       <button class="tab" data-tab="overview">📊 متابعة شاملة</button>
       <button class="tab" data-tab="accounts">🔐 الحسابات</button>
+      <button class="tab" data-tab="subjects">📚 المواد</button>
     </div>
     <div id="deptTabContent"></div>
   `;
@@ -2081,11 +2157,108 @@ function renderDeptView(deptName){
       else if(tab === 'results') renderDeptResultsTab(deptName, hasEvening);
       else if(tab === 'overview') renderDeptOverviewTab(deptName);
       else if(tab === 'accounts') renderDeptAccountsTab(deptName);
+      else if(tab === 'subjects') renderDeptSubjectsTab(deptName);
     };
   });
 
   renderDeptClearanceTab(deptName);
 }
+
+async function renderDeptSubjectsTab(deptName){
+  const cont = $('deptTabContent');
+  // جلب المواد المحفوظة
+  let subjects = [];
+  try {
+    const fb = window.__fb;
+    const snap = await fb.getDoc(fb.doc(STATE.db, 'dept_subjects', deptName));
+    if(snap.exists()) subjects = snap.data().subjects || [];
+  } catch(e){}
+
+  // إذا لم توجد مواد محفوظة، ضع 9 مواد افتراضية
+  if(subjects.length === 0){
+    subjects = Array.from({length:9}, (_,i) => `مادة ${i+1}`);
+  }
+
+  cont.innerHTML = `
+    <div class="section">
+      <div class="section-title">📚 أسماء المواد الدراسية</div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:12px">
+        أدخل أسماء المواد مرة واحدة وستظهر تلقائياً في قالب Excel عند التنزيل
+      </div>
+      <div id="subjectsList">
+        ${subjects.map((s,i) => `
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+            <div style="font-size:12px;color:var(--muted);min-width:60px">مادة ${i+1}:</div>
+            <input type="text" value="${escapeHtml(s)}" id="subj_${i}"
+              style="flex:1;background:var(--input-bg);border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:13px;color:var(--text);font-family:inherit;direction:rtl"
+              placeholder="اسم المادة ${i+1}"/>
+          </div>
+        `).join('')}
+      </div>
+      <div style="display:flex;gap:8px;margin-top:4px">
+        <button onclick="addSubjectField()" 
+          style="flex:1;background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:9px;font-size:13px;color:var(--muted);cursor:pointer;font-family:inherit">
+          ➕ إضافة مادة
+        </button>
+        <button onclick="saveDeptSubjects('${deptName}')"
+          style="flex:2;background:var(--accent);color:#fff;border:none;border-radius:8px;padding:9px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">
+          💾 حفظ المواد
+        </button>
+      </div>
+    </div>
+  `;
+}
+
+window.addSubjectField = function(){
+  const list = $('subjectsList');
+  if(!list) return;
+  const count = list.querySelectorAll('input').length;
+  const div = document.createElement('div');
+  div.style.cssText = 'display:flex;align-items:center;gap:8px;margin-bottom:8px';
+  div.innerHTML = `
+    <div style="font-size:12px;color:var(--muted);min-width:60px">مادة ${count+1}:</div>
+    <input type="text" id="subj_${count}"
+      style="flex:1;background:var(--input-bg);border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:13px;color:var(--text);font-family:inherit;direction:rtl"
+      placeholder="اسم المادة ${count+1}"/>
+  `;
+  list.appendChild(div);
+};
+
+window.saveDeptSubjects = async function(deptName){
+  const inputs = $('subjectsList').querySelectorAll('input');
+  const subjects = Array.from(inputs).map(i => i.value.trim()).filter(s => s);
+  if(subjects.length === 0){ window.toast('أدخل اسم مادة واحدة على الأقل', 'warn'); return; }
+  try {
+    const fb = window.__fb;
+    await fb.setDoc(fb.doc(STATE.db, 'dept_subjects', deptName), { subjects, updated_at: new Date().toLocaleString('ar-IQ') });
+    // حفظ في الكاش المحلي
+    const cache = JSON.parse(localStorage.getItem('kufa_subjects_cache') || '{}');
+    cache[deptName] = subjects;
+    localStorage.setItem('kufa_subjects_cache', JSON.stringify(cache));
+    window.toast('✅ تم حفظ المواد بنجاح', 'success');
+  } catch(e){
+    window.toast('❌ فشل الحفظ: ' + e.message, 'error');
+  }
+};
+
+// دالة لجلب مواد القسم (تُستخدم عند تحميل Excel)
+window.getDeptSubjects = async function(deptName){
+  // من الكاش أولاً
+  const cache = JSON.parse(localStorage.getItem('kufa_subjects_cache') || '{}');
+  if(cache[deptName] && cache[deptName].length > 0) return cache[deptName];
+  // من Firebase
+  try {
+    const fb = window.__fb;
+    const snap = await fb.getDoc(fb.doc(STATE.db, 'dept_subjects', deptName));
+    if(snap.exists()){
+      const subjects = snap.data().subjects || [];
+      cache[deptName] = subjects;
+      localStorage.setItem('kufa_subjects_cache', JSON.stringify(cache));
+      return subjects;
+    }
+  } catch(e){}
+  return [];
+};
 
 function renderDeptClearanceTab(deptName){
   const cont = $('deptTabContent');
@@ -2285,7 +2458,7 @@ window.selectDeptPeriod = function(period, deptName){
   };
 };
 
-function downloadDeptTemplate(deptName, period){
+async function downloadDeptTemplate(deptName, period){
   const students = Object.values(STATE.students)
     .filter(s => s.dept === deptName && s.period === period)
     .sort((a,b) => a.name.localeCompare(b.name, 'ar'));
@@ -2317,9 +2490,23 @@ function downloadDeptTemplate(deptName, period){
   wsInst['!views'] = [{rightToLeft: true}];
   XLSX.utils.book_append_sheet(wb, wsInst, 'تعليمات');
 
+  // جلب أسماء المواد المحفوظة
+  let savedSubjects = [];
+  try {
+    const cache = JSON.parse(localStorage.getItem('kufa_subjects_cache') || '{}');
+    if(cache[deptName] && cache[deptName].length > 0){
+      savedSubjects = cache[deptName];
+    } else {
+      const fb = window.__fb;
+      const snap = await fb.getDoc(fb.doc(STATE.db, 'dept_subjects', deptName));
+      if(snap.exists()) savedSubjects = snap.data().subjects || [];
+    }
+  } catch(e){}
+
+  // بناء رأس الأعمدة باستخدام الأسماء المحفوظة أو الافتراضية
+  const subjectNames = Array.from({length:9}, (_,i) => savedSubjects[i] || `مادة ${i+1}`);
   // Results sheet - RTL Arabic
-  // RTL: columns reversed so name appears on right side
-  const header = ['ملاحظات', 'التقدير النهائي', 'النتيجة النهائية', 'مادة ٩', 'مادة ٨', 'مادة ٧', 'مادة ٦', 'مادة ٥', 'مادة ٤', 'مادة ٣', 'مادة ٢', 'مادة ١', 'الحالة', 'اسم الطالب'];
+  const header = ['ملاحظات', 'التقدير النهائي', 'النتيجة النهائية', ...subjectNames.slice().reverse(), 'الحالة', 'اسم الطالب'];
   const rows = [header];
   students.forEach(s => rows.push(['', '', '', '', '', '', '', '', '', '', '', '', s.status || 'منتظم', s.name]));
 
@@ -2937,6 +3124,13 @@ async function resetStudentAccount(studentId){
 
 // ============== STUDENT VIEW ==============
 window.renderStudentView = function renderStudentView(){
+  // إذا تم البحث بالاسم مسبقاً، استخدم النتيجة
+  if(STATE._studentSearchResult){
+    const student = STATE._studentSearchResult;
+    STATE._studentSearchResult = null;
+    renderStudentDashboard(student);
+    return;
+  }
   const body = $('appBody');
   body.innerHTML = `
     <div style="background:var(--panel);border:2px solid var(--accent);border-radius:12px;padding:16px;margin-bottom:14px;text-align:center">
@@ -3337,7 +3531,11 @@ function renderStudentClearanceTab(student){
         </div>
         <div style="text-align:center;font-size:12px;color:var(--muted);margin-top:10px">
           💡 انسخ الكود واحفظه - لن يتغير
-        </div>`;
+        </div>
+        <button onclick="printClearance('${student.id}')"
+          style="width:100%;margin-top:12px;background:linear-gradient(135deg,#10b981,#059669);color:#fff;border:none;border-radius:12px;padding:12px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit">
+          🖨️ طباعة براءة الذمة
+        </button>`;
     } else {
       html += `
         <div class="blocked-msg" style="background:linear-gradient(135deg,#f59e0b,#d97706)">
@@ -3356,10 +3554,73 @@ function renderStudentClearanceTab(student){
         <div style="margin-top:10px;font-size:12px;background:rgba(255,255,255,.15);padding:8px;border-radius:8px">
           📌 يرجى مراجعة الجهات المذكورة أو رئاسة القسم
         </div>
+      </div>
+      <div style="background:rgba(251,191,36,.1);border:1px solid rgba(251,191,36,.3);border-radius:10px;padding:10px;margin-top:8px;font-size:12px;text-align:center;color:var(--gold)">
+        ⚠️ لن تتمكن من استلام نتيجتك حتى تكتمل براءة الذمة
       </div>`;
   }
   cont.innerHTML = html;
 }
+
+window.printClearance = function(studentId){
+  const student = STATE.students[studentId];
+  const c = STATE.clearances[studentId] || {};
+  if(!student) return;
+  const now = new Date().toLocaleString('ar-IQ');
+  const win = window.open('', '_blank');
+  win.document.write(`<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+<meta charset="UTF-8">
+<title>براءة الذمة - ${student.name}</title>
+<style>
+  body{font-family:'Segoe UI',Tahoma,Arial,sans-serif;margin:30px;color:#000;direction:rtl}
+  .header{text-align:center;border-bottom:2px solid #000;padding-bottom:15px;margin-bottom:20px}
+  .header h2{margin:5px 0;font-size:18px}
+  .header h3{margin:5px 0;font-size:15px;font-weight:normal}
+  .student-info{background:#f5f5f5;padding:12px;border-radius:8px;margin-bottom:20px}
+  .student-info div{margin:5px 0;font-size:13px}
+  table{width:100%;border-collapse:collapse;margin-bottom:20px}
+  th,td{border:1px solid #ccc;padding:8px 12px;text-align:right;font-size:13px}
+  th{background:#e0e0e0;font-weight:700}
+  .ok{color:#059669;font-weight:700}
+  .pending{color:#dc2626}
+  .code-box{border:2px solid #000;padding:15px;text-align:center;margin:20px 0;border-radius:8px}
+  .code-box .code{font-size:24px;font-weight:700;letter-spacing:4px;margin:8px 0}
+  .footer{text-align:center;font-size:11px;color:#666;margin-top:30px;border-top:1px solid #ccc;padding-top:10px}
+  @media print{button{display:none}}
+</style>
+</head>
+<body>
+<div class="header">
+  <h2>جامعة الفرات الأوسط التقنية</h2>
+  <h3>المعهد التقني / الكوفة</h3>
+  <h2>وثيقة براءة الذمة</h2>
+</div>
+<div class="student-info">
+  <div><b>اسم الطالب:</b> ${student.name}</div>
+  <div><b>القسم:</b> تقنيات ${student.dept}</div>
+  <div><b>الحالة:</b> ${student.status || 'منتظم'}</div>
+  <div><b>تاريخ الإصدار:</b> ${now}</div>
+</div>
+<table>
+  <tr><th>الجهة</th><th>الحالة</th></tr>
+  <tr><td>👥 شؤون الطلبة</td><td class="${c.affairs?'ok':'pending'}">${c.affairs?'✅ برئت الذمة':'⏳ قيد الإجراء'}</td></tr>
+  <tr><td>💰 المالية</td><td class="${c.finance?'ok':'pending'}">${c.finance?'✅ برئت الذمة':'⏳ قيد الإجراء'}</td></tr>
+  <tr><td>🏠 الأقسام الداخلية</td><td class="${c.dorms===true?'ok':c.dorms==='not_applicable'?'':'pending'}">${c.dorms===true?'✅ برئت الذمة':c.dorms==='not_applicable'?'غير ساكن':'⏳ قيد الإجراء'}</td></tr>
+  <tr><td>🏫 القسم العلمي</td><td class="${c.dept?'ok':'pending'}">${c.dept?'✅ برئت الذمة':'⏳ قيد الإجراء'}</td></tr>
+</table>
+${c.secret_code ? `<div class="code-box">
+  <div>الكود السري لاستلام النتيجة</div>
+  <div class="code">${c.secret_code}</div>
+</div>` : ''}
+<div class="footer">
+  ✓ تم إصدار هذه الوثيقة من نظام براءة الذمة - اللجنة الامتحانية - المعهد التقني / الكوفة
+</div>
+<br/><button onclick="window.print()" style="padding:10px 30px;font-size:14px;cursor:pointer">🖨️ طباعة</button>
+</body></html>`);
+  win.document.close();
+};
 
 function renderStudentResultsTab(student){
   const c = STATE.clearances[student.id] || {};
@@ -3408,43 +3669,62 @@ function checkSecretCode(student){
 function displayStudentResults(student){
   const cont = $('resultsDisplay');
   const r = STATE.results[student.id];
+
   if(!r || !r.subjects || Object.keys(r.subjects).length === 0){
     cont.innerHTML = `
-      <div class="section" style="background:rgba(251,191,36,.08);border-color:var(--gold)">
-        <div style="text-align:center;padding:14px">
-          <div style="font-size:30px">⏳</div>
-          <div style="font-weight:700;color:var(--gold);margin-top:6px">النتيجة غير متوفرة بعد</div>
-          <div style="font-size:12px;color:var(--muted);margin-top:6px">يرجى المراجعة لاحقاً</div>
-        </div>
+      <div style="text-align:center;padding:30px;background:rgba(251,191,36,.08);border:1.5px solid var(--gold);border-radius:16px">
+        <div style="font-size:40px">⏳</div>
+        <div style="font-weight:700;color:var(--gold);margin:8px 0;font-size:15px">النتيجة غير متوفرة بعد</div>
+        <div style="font-size:12px;color:var(--muted)">يرجى المراجعة لاحقاً</div>
       </div>`;
     return;
   }
 
-  let html = `
-    <div class="section">
-      <div class="section-title">📊 نتيجة الامتحانات النهائية</div>
-      <table class="result-table">
-        <thead><tr><th>المادة</th><th>التقدير</th></tr></thead>
-        <tbody>`;
-  Object.keys(r.subjects).forEach(subj => {
-    const grade = r.subjects[subj];
-    const gradeClass = String(grade).replace(/ /g, '.');
-    html += `<tr><td style="text-align:right">${H.escapeHtml(subj)}</td><td><span class="grade-pill grade-${gradeClass}">${H.escapeHtml(grade)}</span></td></tr>`;
-  });
-  html += `</tbody></table>`;
-  if(r.final_status){
-    let cls = 'pass', msg = `🎉 ${r.final_status}`;
-    if(r.final_status === 'مكمل'){ cls = 'makeup'; msg = '📚 ' + r.final_status; }
-    else if(r.final_status === 'راسب'){ cls = 'fail'; msg = '❌ ' + r.final_status; }
-    else if(r.final_grade){ msg += ' بتقدير ' + r.final_grade; }
-    html += `<div class="final-result ${cls}">${msg}</div>`;
+  const isPass = r.final_result === 'ناجح' || r.final_result === 'ناجح بقرار';
+  const isFail = r.final_result === 'راسب';
+  const isMakeup = r.final_result === 'مكمّل' || r.final_result === 'مكمل';
+
+  const heroClass = isPass ? 'pass' : isFail ? 'fail' : 'makeup';
+  const confetti = isPass ? '🎉' : isFail ? '😞' : '📚';
+
+  let heroMsg = '', heroBadge = '';
+  if(isPass){
+    heroMsg = `مبـــروووك ${H.escapeHtml(student.name.split(' ')[0])}! 🌟`;
+    heroBadge = r.final_grade ? `ناجح بتقدير ${r.final_grade}` : 'ناجح';
+  } else if(isFail){
+    heroMsg = 'نتمنى لك التوفيق';
+    heroBadge = 'راسب';
+  } else {
+    heroMsg = 'يوجد مواد مكملة';
+    heroBadge = 'مكمّل';
   }
-  html += '</div>';
-  html += `
-    <div style="background:rgba(16,185,129,.08);border:1.5px solid var(--accent);border-radius:10px;padding:12px;font-size:12px;color:var(--muted);text-align:center;margin-top:10px">
-      ✓ تم إصدار النتيجة من قبل اللجنة الامتحانية - المعهد التقني الكوفة
+
+  // تصميم بطاقات المواد
+  const subjectRows = Object.entries(r.subjects).map(([subj, grade]) => {
+    const gradeClass = String(grade).replace(/ /g, '.');
+    return `<div class="subject-row">
+      <span style="color:var(--text)">${H.escapeHtml(subj)}</span>
+      <span class="grade-pill grade-${gradeClass}">${H.escapeHtml(grade)}</span>
     </div>`;
-  cont.innerHTML = html;
+  }).join('');
+
+  cont.innerHTML = `
+    <div class="result-hero ${heroClass}">
+      <div class="confetti">${confetti}</div>
+      <div class="congrats">${heroMsg}</div>
+      <div class="grade-badge">${heroBadge}</div>
+      <div class="student-name-hero">📋 ${H.escapeHtml(student.name)}</div>
+    </div>
+
+    <div class="subjects-card">
+      <div class="subjects-card-header">📊 نتيجة الامتحانات النهائية</div>
+      ${subjectRows}
+    </div>
+
+    <div style="background:rgba(16,185,129,.08);border:1.5px solid rgba(16,185,129,.3);border-radius:12px;padding:11px;font-size:11px;color:var(--muted);text-align:center">
+      ✓ تم إصدار النتيجة من قبل اللجنة الامتحانية - المعهد التقني / الكوفة
+    </div>
+  `;
 }
 
 async function renderStudentAccountTab(student){
@@ -3516,7 +3796,7 @@ window.renderDeanView = function renderDeanView(){
       <button class="tab" data-tab="students">👥 الطلبة</button>
       <button class="tab" data-tab="accounts">🔐 حسابات الطلبة</button>
       <button class="tab" data-tab="log">📝 السجل</button>
-      <button class="tab" data-tab="settings">⚙️ الإعدادات</button>
+      <button class="tab" data-tab="settings">⚙️ الإعدادات <span id="pwRequestsBadge" style="display:none;background:#ef4444;color:#fff;border-radius:10px;padding:1px 6px;font-size:10px;margin-right:2px"></span></button>
     </div>
     <div id="deanTabContent"></div>
   `;
@@ -3532,11 +3812,38 @@ window.renderDeanView = function renderDeanView(){
       else if(tab === 'students') renderDeanStudents();
       else if(tab === 'accounts') renderDeanAccounts();
       else if(tab === 'log') renderDeanLog();
-      else if(tab === 'settings') renderDeanSettings();
+      else if(tab === 'settings'){ renderDeanSettings(); hidePwBadge(); }
     };
   });
   renderDeanOverview();
+  // فحص طلبات الباسورد كل 60 ثانية
+  checkPwRequestsBadge();
+  if(STATE._pwBadgeInterval) clearInterval(STATE._pwBadgeInterval);
+  STATE._pwBadgeInterval = setInterval(checkPwRequestsBadge, 60000);
 };
+
+async function checkPwRequestsBadge(){
+  try {
+    const fb = window.__fb;
+    if(!STATE.db) return;
+    const snap = await fb.getDocs(fb.collection(STATE.db, 'pw_reset_requests'));
+    let count = 0;
+    snap.forEach(d => { if(d.data().status === 'pending') count++; });
+    const badge = $('pwRequestsBadge');
+    if(!badge) return;
+    if(count > 0){
+      badge.textContent = count;
+      badge.style.display = 'inline';
+    } else {
+      badge.style.display = 'none';
+    }
+  } catch(e){}
+}
+
+function hidePwBadge(){
+  const badge = $('pwRequestsBadge');
+  if(badge) badge.style.display = 'none';
+}
 
 function renderDeanOverview(){
   const cont = $('deanTabContent');
@@ -3921,7 +4228,41 @@ window.resetAllStudentAccounts = async function resetAllStudentAccounts(){
 
 function renderDeanResults(){
   const cont = $('deanTabContent');
+
+  // حساب إحصائيات النتائج
+  const allResults = Object.values(STATE.results);
+  const totalWithResults = allResults.length;
+  const grades = { 'امتياز':0, 'جيد جداً':0, 'جيد':0, 'متوسط':0, 'مقبول':0 };
+  const outcomes = { 'ناجح':0, 'مكمّل':0, 'راسب':0, 'ناجح بقرار':0 };
+  allResults.forEach(r => {
+    if(r.final_grade && grades[r.final_grade] !== undefined) grades[r.final_grade]++;
+    if(r.final_result && outcomes[r.final_result] !== undefined) outcomes[r.final_result]++;
+  });
+
   cont.innerHTML = `
+  ${totalWithResults > 0 ? `
+  <div class="section">
+    <div class="section-title">📊 إحصائيات النتائج</div>
+    <div class="stats-row">
+      <div class="stat-box green"><div class="stat-num">${outcomes['ناجح']||0}</div><div class="stat-lbl">ناجح</div></div>
+      <div class="stat-box gold"><div class="stat-num">${outcomes['ناجح بقرار']||0}</div><div class="stat-lbl">ناجح بقرار</div></div>
+      <div class="stat-box red"><div class="stat-num">${outcomes['راسب']||0}</div><div class="stat-lbl">راسب</div></div>
+      <div class="stat-box blue"><div class="stat-num">${outcomes['مكمّل']||0}</div><div class="stat-lbl">مكمّل</div></div>
+    </div>
+    <div style="margin-top:10px">
+      ${Object.entries(grades).map(([g,n]) => n > 0 ? `
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;font-size:12px">
+          <span>${g}</span>
+          <div style="flex:1;margin:0 8px;background:rgba(0,0,0,.3);border-radius:4px;height:5px">
+            <div style="background:var(--accent);width:${totalWithResults>0?Math.round(n/totalWithResults*100):0}%;height:100%;border-radius:4px"></div>
+          </div>
+          <span style="color:var(--muted)">${n}</span>
+        </div>` : '').join('')}
+    </div>
+  </div>` : ''}
+  `;
+
+  cont.innerHTML += `
     <div class="section">
       <div class="section-title">📥 رفع نتائج قسم</div>
       <div style="font-size:12px;color:var(--muted);margin-bottom:10px">
@@ -4316,9 +4657,15 @@ function renderDeanSettings(){
     
     <div class="section">
       <div class="section-title">📤 تصدير التقارير</div>
+      <button onclick="exportFullPDFReport()" class="btn btn-secondary btn-block" style="margin-bottom:8px">📄 تقرير PDF شامل</button>
       <button class="btn btn-secondary btn-block" id="exportClearancesBtn">📊 تصدير براءات الذمة</button>
       <button class="btn btn-secondary btn-block" id="exportResultsBtn" style="margin-top:8px">📊 تصدير النتائج</button>
       <button class="btn btn-secondary btn-block" id="exportCodesBtn" style="margin-top:8px">🔐 تصدير الأكواد السرية</button>
+    </div>
+
+    <div class="section">
+      <div class="section-title" style="color:var(--accent)">🕐 آخر تسجيل دخول</div>
+      <div id="lastLoginList" style="font-size:12px;color:var(--muted)">جاري التحميل...</div>
     </div>
 
     <div class="section" id="pwResetRequestsSection">
@@ -4342,6 +4689,40 @@ function renderDeanSettings(){
 
   // تحميل طلبات استعادة كلمة المرور
   loadPwResetRequests();
+  // تحميل آخر تسجيل دخول
+  loadLastLogins();
+}
+
+async function loadLastLogins(){
+  const el = $('lastLoginList');
+  if(!el) return;
+  try {
+    const fb = window.__fb;
+    const snap = await fb.getDocs(fb.collection(STATE.db, 'last_login'));
+    const logins = [];
+    snap.forEach(d => logins.push(d.data()));
+    logins.sort((a,b) => (b.timestamp||0) - (a.timestamp||0));
+
+    const roleLabels = {
+      affairs: '👥 شؤون الطلبة', finance: '💰 المالية',
+      dorms: '🏠 الأقسام الداخلية', dean: '👑 معاون العميد'
+    };
+
+    if(logins.length === 0){
+      el.innerHTML = '<div style="color:var(--muted);font-size:12px">لا توجد سجلات بعد</div>';
+      return;
+    }
+
+    el.innerHTML = logins.map(l => {
+      const label = roleLabels[l.role] || ('🏫 ' + (l.role.replace('dept_','قسم ')));
+      return `<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border)">
+        <span style="color:var(--text)">${label}</span>
+        <span style="color:var(--muted);font-size:11px">${l.time||''}</span>
+      </div>`;
+    }).join('');
+  } catch(e){
+    if(el) el.innerHTML = '<div style="color:var(--red);font-size:12px">❌ فشل التحميل</div>';
+  }
 }
 
 async function loadPwResetRequests(){
@@ -4394,6 +4775,94 @@ window.resetRolePassword = async function(role, reqId){
       }
     }
   );
+};
+
+window.exportFullPDFReport = function(){
+  const now = new Date().toLocaleString('ar-IQ');
+  const totalStudents = Object.keys(STATE.students).length;
+  let totalCleared = 0, totalResults = 0;
+  const outcomes = { 'ناجح':0, 'مكمّل':0, 'راسب':0, 'ناجح بقرار':0 };
+  const grades = { 'امتياز':0, 'جيد جداً':0, 'جيد':0, 'متوسط':0, 'مقبول':0 };
+
+  for(const sid of Object.keys(STATE.students)){
+    if(H.checkClearance(sid).cleared) totalCleared++;
+    const r = STATE.results[sid];
+    if(r){
+      totalResults++;
+      if(r.final_result && outcomes[r.final_result] !== undefined) outcomes[r.final_result]++;
+      if(r.final_grade && grades[r.final_grade] !== undefined) grades[r.final_grade]++;
+    }
+  }
+
+  const deptStats = H.DEPTS.map(d => {
+    const ds = Object.values(STATE.students).filter(s => s.dept === d);
+    const cleared = ds.filter(s => H.checkClearance(s.id).cleared).length;
+    const withResults = ds.filter(s => STATE.results[s.id]).length;
+    const passed = ds.filter(s => STATE.results[s.id]?.final_result === 'ناجح').length;
+    return { name: d, total: ds.length, cleared, withResults, passed };
+  });
+
+  const win = window.open('', '_blank');
+  win.document.write(`<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+<meta charset="UTF-8">
+<title>التقرير الشامل - المعهد التقني الكوفة</title>
+<style>
+  body{font-family:'Segoe UI',Tahoma,Arial,sans-serif;margin:25px;color:#000;direction:rtl;font-size:13px}
+  h1,h2,h3{text-align:center;margin:5px 0}
+  .header{border-bottom:2px solid #000;padding-bottom:12px;margin-bottom:15px;text-align:center}
+  table{width:100%;border-collapse:collapse;margin:12px 0}
+  th,td{border:1px solid #999;padding:6px 10px;text-align:right}
+  th{background:#ddd;font-weight:700}
+  .stats{display:flex;gap:15px;margin:12px 0;flex-wrap:wrap}
+  .stat{flex:1;min-width:100px;border:1px solid #ccc;border-radius:6px;padding:10px;text-align:center}
+  .stat .n{font-size:22px;font-weight:700;color:#1d4ed8}
+  .section-title{font-weight:700;font-size:14px;margin:15px 0 5px;border-right:4px solid #1d4ed8;padding-right:8px}
+  @media print{button{display:none}}
+</style>
+</head>
+<body>
+<div class="header">
+  <h2>جامعة الفرات الأوسط التقنية</h2>
+  <h3>المعهد التقني / الكوفة - اللجنة الامتحانية</h3>
+  <h1>التقرير الشامل لنتائج الدورة الامتحانية</h1>
+  <div style="font-size:12px;margin-top:5px">تاريخ الإصدار: ${now}</div>
+</div>
+
+<div class="section-title">📊 الإحصائيات العامة</div>
+<div class="stats">
+  <div class="stat"><div class="n">${totalStudents}</div><div>إجمالي الطلبة</div></div>
+  <div class="stat"><div class="n">${totalCleared}</div><div>أنجزوا براءة الذمة</div></div>
+  <div class="stat"><div class="n">${totalResults}</div><div>رُفعت نتائجهم</div></div>
+  <div class="stat"><div class="n">${outcomes['ناجح']||0}</div><div>ناجح</div></div>
+  <div class="stat"><div class="n">${outcomes['راسب']||0}</div><div>راسب</div></div>
+  <div class="stat"><div class="n">${outcomes['مكمّل']||0}</div><div>مكمّل</div></div>
+</div>
+
+<div class="section-title">📋 تفاصيل الأقسام</div>
+<table>
+  <tr><th>القسم</th><th>إجمالي الطلبة</th><th>براءة الذمة</th><th>رُفعت النتائج</th><th>الناجحون</th><th>نسبة النجاح</th></tr>
+  ${deptStats.map(d => `<tr>
+    <td>تقنيات ${d.name}</td>
+    <td style="text-align:center">${d.total}</td>
+    <td style="text-align:center">${d.cleared}</td>
+    <td style="text-align:center">${d.withResults}</td>
+    <td style="text-align:center">${d.passed}</td>
+    <td style="text-align:center">${d.withResults>0?Math.round(d.passed/d.withResults*100):0}%</td>
+  </tr>`).join('')}
+</table>
+
+<div class="section-title">🎓 توزيع التقديرات</div>
+<table>
+  <tr>${Object.keys(grades).map(g=>`<th>${g}</th>`).join('')}</tr>
+  <tr>${Object.values(grades).map(n=>`<td style="text-align:center">${n}</td>`).join('')}</tr>
+</table>
+
+<br/>
+<button onclick="window.print()" style="padding:10px 30px;font-size:14px;cursor:pointer">🖨️ طباعة / PDF</button>
+</body></html>`);
+  win.document.close();
 };
 
 function exportClearancesReport(){
