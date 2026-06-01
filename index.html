@@ -2549,7 +2549,8 @@ async function handleDeptResultsFile(file, deptName, period){
       if(skipCols.has(i)) return;
       const hStr = String(h||'').trim();
       if(!hStr) return;
-      if(['اسم الطالب','الحالة','المواد المطلوبة','ت'].some(k => hStr === k)) return;
+      if(['اسم الطالب','الحالة','حالة الطالب','المواد المطلوبة','ت'].some(k => hStr === k)) return;
+      if(hStr.includes('الحالة') || hStr.includes('حالة')) return;
       subCols.push({idx:i, name:hStr});
     });
 
@@ -3680,48 +3681,83 @@ function displayStudentResults(student){
     return;
   }
 
-  const isPass = r.final_result === 'ناجح' || r.final_result === 'ناجح بقرار';
-  const isFail = r.final_result === 'راسب';
-  const isMakeup = r.final_result === 'مكمّل' || r.final_result === 'مكمل';
+  // فلترة المواد الحقيقية فقط (تجاهل حالة الطالب والأعمدة غير الدراسية)
+  const skipWords = ['حالة','الحالة','منتظم','انتساب','المواد','ت'];
+  const subjectEntries = Object.entries(r.subjects).filter(([subj]) => {
+    const s = subj.trim();
+    return !skipWords.some(w => s.includes(w)) && s.length > 1;
+  });
+
+  const finalResult = r.final_result || r.final_status || '';
+  const isPass = finalResult === 'ناجح' || finalResult === 'ناجح بقرار';
+  const isFail = finalResult === 'راسب';
+  const isMakeup = finalResult.includes('مكمّل') || finalResult.includes('مكمل');
+
+  // المواد المكملة (تقدير مقبول أو فارغ غير ناجح)
+  const makeupGrades = ['مكمّل','مكمل','راسب','ضعيف','غائب'];
+  const makeupSubjects = subjectEntries.filter(([,g]) => makeupGrades.some(mg => String(g).includes(mg)));
 
   const heroClass = isPass ? 'pass' : isFail ? 'fail' : 'makeup';
-  const confetti = isPass ? '🎉' : isFail ? '😞' : '📚';
+  const firstName = H.escapeHtml(student.name.split(' ')[0]);
 
-  let heroMsg = '', heroBadge = '';
+  let heroContent = '';
   if(isPass){
-    heroMsg = `مبـــروووك ${H.escapeHtml(student.name.split(' ')[0])}! 🌟`;
-    heroBadge = r.final_grade ? `ناجح بتقدير ${r.final_grade}` : 'ناجح';
-  } else if(isFail){
-    heroMsg = 'نتمنى لك التوفيق';
-    heroBadge = 'راسب';
+    heroContent = `
+      <div style="font-size:50px;animation:bounce 0.8s infinite alternate">🎉</div>
+      <div style="font-size:24px;font-weight:900;color:#fff;margin:8px 0;text-shadow:0 2px 8px rgba(0,0,0,.3)">
+        مبـــروووك ${firstName}! 🌟
+      </div>
+      <div style="background:rgba(255,255,255,.2);border:2px solid rgba(255,255,255,.5);border-radius:30px;padding:8px 24px;display:inline-block;margin:6px 0">
+        <span style="font-size:16px;font-weight:700;color:#fff">
+          ${r.final_grade ? `ناجح بتقدير ${r.final_grade}` : 'ناجح ✅'}
+        </span>
+      </div>
+      <div style="font-size:12px;color:rgba(255,255,255,.7);margin-top:6px">
+        ${H.escapeHtml(student.name)} • تقنيات ${H.escapeHtml(student.dept)}
+      </div>`;
+  } else if(isMakeup){
+    heroContent = `
+      <div style="font-size:40px">📚</div>
+      <div style="font-size:20px;font-weight:800;color:#fff;margin:8px 0">يوجد مواد مكملة</div>
+      <div style="background:rgba(255,255,255,.2);border:2px solid rgba(255,255,255,.4);border-radius:30px;padding:6px 20px;display:inline-block;margin:4px 0">
+        <span style="font-size:14px;font-weight:700;color:#fff">مكمّل في ${makeupSubjects.length} مادة</span>
+      </div>
+      ${makeupSubjects.length > 0 ? `
+      <div style="margin-top:10px;background:rgba(0,0,0,.2);border-radius:10px;padding:8px 14px;text-align:right">
+        ${makeupSubjects.map(([s]) => `<div style="font-size:13px;color:rgba(255,255,255,.9);padding:2px 0">• ${H.escapeHtml(s)}</div>`).join('')}
+      </div>` : ''}
+      <div style="font-size:12px;color:rgba(255,255,255,.7);margin-top:8px">${H.escapeHtml(student.name)}</div>`;
   } else {
-    heroMsg = 'يوجد مواد مكملة';
-    heroBadge = 'مكمّل';
+    heroContent = `
+      <div style="font-size:40px">😞</div>
+      <div style="font-size:20px;font-weight:800;color:#fff;margin:8px 0">نتمنى لك التوفيق</div>
+      <div style="background:rgba(255,255,255,.2);border:2px solid rgba(255,255,255,.4);border-radius:30px;padding:6px 20px;display:inline-block">
+        <span style="font-size:14px;font-weight:700;color:#fff">راسب</span>
+      </div>
+      <div style="font-size:12px;color:rgba(255,255,255,.7);margin-top:8px">${H.escapeHtml(student.name)}</div>`;
   }
 
-  // تصميم بطاقات المواد
-  const subjectRows = Object.entries(r.subjects).map(([subj, grade]) => {
+  // بطاقات المواد
+  const subjectRows = subjectEntries.map(([subj, grade]) => {
     const gradeClass = String(grade).replace(/ /g, '.');
-    return `<div class="subject-row">
-      <span style="color:var(--text)">${H.escapeHtml(subj)}</span>
+    const isMakeupSubj = makeupGrades.some(mg => String(grade).includes(mg));
+    return `<div class="subject-row" style="${isMakeupSubj?'background:rgba(239,68,68,.05)':''}">
+      <span style="color:var(--text);font-size:13px">${H.escapeHtml(subj)}</span>
       <span class="grade-pill grade-${gradeClass}">${H.escapeHtml(grade)}</span>
     </div>`;
   }).join('');
 
   cont.innerHTML = `
-    <div class="result-hero ${heroClass}">
-      <div class="confetti">${confetti}</div>
-      <div class="congrats">${heroMsg}</div>
-      <div class="grade-badge">${heroBadge}</div>
-      <div class="student-name-hero">📋 ${H.escapeHtml(student.name)}</div>
+    <div class="result-hero ${heroClass}" style="padding:24px 16px">
+      ${heroContent}
     </div>
 
     <div class="subjects-card">
-      <div class="subjects-card-header">📊 نتيجة الامتحانات النهائية</div>
-      ${subjectRows}
+      <div class="subjects-card-header">📋 تفاصيل المواد الدراسية</div>
+      ${subjectRows || '<div style="padding:12px;text-align:center;color:var(--muted);font-size:13px">لا توجد مواد مسجلة</div>'}
     </div>
 
-    <div style="background:rgba(16,185,129,.08);border:1.5px solid rgba(16,185,129,.3);border-radius:12px;padding:11px;font-size:11px;color:var(--muted);text-align:center">
+    <div style="background:rgba(16,185,129,.06);border:1px solid rgba(16,185,129,.2);border-radius:10px;padding:10px;font-size:11px;color:var(--muted);text-align:center;margin-top:4px">
       ✓ تم إصدار النتيجة من قبل اللجنة الامتحانية - المعهد التقني / الكوفة
     </div>
   `;
