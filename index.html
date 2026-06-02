@@ -1092,8 +1092,9 @@ window.handlePwForgot = async function(){
 
 function showPwScreen(role){
   STATE.role = role;
-  // مسح كاش الباسورد لضمان جلب أحدث نسخة من Firebase
+  // مسح كاش الباسورد دائماً لضمان جلب أحدث نسخة من Firebase
   STATE.pwLoaded = false;
+  localStorage.removeItem('kufa_passwords_cache');
   $('pwScreen').style.display = 'block'; document.body.style.overflow='hidden';
   document.body.style.overflow = 'hidden';
 
