@@ -734,19 +734,33 @@ function nowStamp(){
 
 // Passwords stored in Firestore (collection: passwords, doc: role)
 const PW_KEY = (role) => 'kufa_clearance_pw_' + role; // kept for fallback only
-function getPassword(role){ return STATE.passwords?.[role] || '1234'; }
-function setPasswordLocal(role, pw){ if(STATE.passwords) STATE.passwords[role] = pw; localStorage.setItem(PW_KEY(role), pw); }
+// ===== منظومة الباسوردات =====
+// القاعدة: Firebase هو المصدر الوحيد للحقيقة
+// localStorage فقط للسرعة - يُحدَّث دائماً من Firebase
+
+function getPassword(role){
+  return STATE.passwords?.[role] || '1234';
+}
+
 async function setPasswordRemote(role, pw){
   try {
     const fb = window.__fb;
+    // 1. احفظ في Firebase
     await fb.setDoc(fb.doc(STATE.db, 'passwords', role), { pw });
-    setPasswordLocal(role, pw);
-    // تحديث كاش الباسوردات
+    // 2. حدّث الذاكرة
+    if(!STATE.passwords) STATE.passwords = {};
+    STATE.passwords[role] = pw;
+    // 3. حدّث localStorage
     const cached = localStorage.getItem('kufa_passwords_cache');
     const pws = cached ? JSON.parse(cached) : {};
     pws[role] = pw;
     localStorage.setItem('kufa_passwords_cache', JSON.stringify(pws));
-  } catch(e){ console.error('setPasswordRemote error', e); setPasswordLocal(role, pw); }
+  } catch(e){
+    console.error('setPasswordRemote error', e);
+    // حتى لو فشل Firebase - حدّث الذاكرة المحلية
+    if(!STATE.passwords) STATE.passwords = {};
+    STATE.passwords[role] = pw;
+  }
 }
 
 // Normalize Arabic name for searching (remove diacritics, normalize hamza, etc.)
@@ -910,20 +924,7 @@ async function loadResults(){
 
 // Load passwords from Firestore
 async function loadPasswords(){
-  // تحميل من localStorage أولاً
-  const cached = localStorage.getItem('kufa_passwords_cache');
-  if(cached){
-    STATE.passwords = JSON.parse(cached);
-    STATE.pwLoaded = true;
-    // تحديث من Firebase في الخلفية بدون انتظار
-    _refreshPasswordsFromFirebase();
-    return;
-  }
-  // أول مرة - جلب من Firebase
-  await _refreshPasswordsFromFirebase();
-}
-
-async function _refreshPasswordsFromFirebase(){
+  // جلب من Firebase مباشرة عند الدخول للتطبيق
   try {
     const fb = window.__fb;
     const snap = await fb.getDocs(fb.collection(STATE.db, 'passwords'));
@@ -934,7 +935,13 @@ async function _refreshPasswordsFromFirebase(){
       STATE.pwLoaded = true;
       localStorage.setItem('kufa_passwords_cache', JSON.stringify(pws));
     }
-  } catch(e){ console.warn('_refreshPasswordsFromFirebase error', e); }
+  } catch(e){
+    // فشل Firebase - استخدم localStorage مؤقتاً
+    const cached = localStorage.getItem('kufa_passwords_cache');
+    if(cached) STATE.passwords = JSON.parse(cached);
+    else STATE.passwords = {};
+    console.warn('loadPasswords: using local cache');
+  }
 }
 
 // Get/create clearance record for a student
@@ -1085,6 +1092,8 @@ window.handlePwForgot = async function(){
 
 function showPwScreen(role){
   STATE.role = role;
+  // مسح كاش الباسورد لضمان جلب أحدث نسخة من Firebase
+  STATE.pwLoaded = false;
   $('pwScreen').style.display = 'block'; document.body.style.overflow='hidden';
   document.body.style.overflow = 'hidden';
 
@@ -1106,29 +1115,27 @@ function showPwScreen(role){
 async function tryPassword(){
   const role = STATE.role;
   const entered = $('pwInput').value.trim();
-  // دائماً جلب الباسورد من Firebase أولاً (للتأكد من أحدث نسخة)
+  // جلب الباسورد من Firebase في كل مرة (showPwScreen يعيد pwLoaded=false)
   if(!STATE.pwLoaded){
     $('pwSubmit').disabled = true;
     $('pwSubmit').textContent = '⏳ جاري التحقق...';
     try {
       const fb = window.__fb;
+      if(!STATE.db) throw new Error('no db');
       const snap = await fb.getDocs(fb.collection(STATE.db, 'passwords'));
       const pws = {};
       snap.forEach(d => { pws[d.id] = d.data().pw; });
       if(Object.keys(pws).length > 0){
         STATE.passwords = pws;
-        STATE.pwLoaded = true;
         localStorage.setItem('kufa_passwords_cache', JSON.stringify(pws));
-      } else {
-        // Firebase فارغ - استخدم الكاش المحلي
-        const cached = localStorage.getItem('kufa_passwords_cache');
-        if(cached){ STATE.passwords = JSON.parse(cached); STATE.pwLoaded = true; }
       }
+      STATE.pwLoaded = true;
     } catch(e){
-      // انقطاع الانترنت - استخدم الكاش المحلي مؤقتاً
+      // فشل الاتصال - استخدم localStorage مؤقتاً
       const cached = localStorage.getItem('kufa_passwords_cache');
-      if(cached){ STATE.passwords = JSON.parse(cached); }
-      else if(!STATE.passwords) STATE.passwords = {};
+      if(cached) STATE.passwords = JSON.parse(cached);
+      if(!STATE.passwords) STATE.passwords = {};
+      STATE.pwLoaded = true; // نسمح بالمحاولة
     }
     $('pwSubmit').disabled = false;
     $('pwSubmit').textContent = '🔓 دخول';
