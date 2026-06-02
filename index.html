@@ -1092,28 +1092,32 @@ function showPwScreen(role){
 async function tryPassword(){
   const role = STATE.role;
   const entered = $('pwInput').value.trim();
-  // جلب الباسورد من الكاش أو Firebase إذا لم يكن محملاً
+  // دائماً جلب الباسورد من Firebase أولاً (للتأكد من أحدث نسخة)
   if(!STATE.pwLoaded){
-    const cached = localStorage.getItem('kufa_passwords_cache');
-    if(cached){
-      STATE.passwords = JSON.parse(cached);
-      STATE.pwLoaded = true;
-    } else {
-      $('pwSubmit').disabled = true;
-      $('pwSubmit').textContent = '⏳ جاري التحقق...';
-      try {
-        const fb = window.__fb;
-        const snap = await fb.getDocs(fb.collection(STATE.db, 'passwords'));
-        STATE.passwords = {};
-        snap.forEach(d => { STATE.passwords[d.id] = d.data().pw; });
-        if(Object.keys(STATE.passwords).length > 0){
-          STATE.pwLoaded = true;
-          localStorage.setItem('kufa_passwords_cache', JSON.stringify(STATE.passwords));
-        }
-      } catch(e){ if(!STATE.passwords) STATE.passwords = {}; }
-      $('pwSubmit').disabled = false;
-      $('pwSubmit').textContent = '🔓 دخول';
+    $('pwSubmit').disabled = true;
+    $('pwSubmit').textContent = '⏳ جاري التحقق...';
+    try {
+      const fb = window.__fb;
+      const snap = await fb.getDocs(fb.collection(STATE.db, 'passwords'));
+      const pws = {};
+      snap.forEach(d => { pws[d.id] = d.data().pw; });
+      if(Object.keys(pws).length > 0){
+        STATE.passwords = pws;
+        STATE.pwLoaded = true;
+        localStorage.setItem('kufa_passwords_cache', JSON.stringify(pws));
+      } else {
+        // Firebase فارغ - استخدم الكاش المحلي
+        const cached = localStorage.getItem('kufa_passwords_cache');
+        if(cached){ STATE.passwords = JSON.parse(cached); STATE.pwLoaded = true; }
+      }
+    } catch(e){
+      // انقطاع الانترنت - استخدم الكاش المحلي مؤقتاً
+      const cached = localStorage.getItem('kufa_passwords_cache');
+      if(cached){ STATE.passwords = JSON.parse(cached); }
+      else if(!STATE.passwords) STATE.passwords = {};
     }
+    $('pwSubmit').disabled = false;
+    $('pwSubmit').textContent = '🔓 دخول';
   }
   const correct = getPassword(role);
   if(entered === correct){
@@ -2535,26 +2539,19 @@ async function handleDeptResultsFile(file, deptName, period){
     const finalGradeCol = header.findIndex(h => String(h).includes('التقدير النهائي'));
     if(nameCol < 0){ status.innerHTML = `<div style="color:var(--red);font-size:12px">عمود الاسم غير موجود</div>`; return; }
 
-    // Subject columns (anything not name/status/final)
-    const skipCols = new Set([nameCol, finalStatusCol, finalGradeCol,
-      header.findIndex(h => String(h).includes('الحالة')),
-      header.findIndex(h => String(h).includes('المواد المطلوبة')),
-    ]);
-    const subjectCols = header.map((h,i) => ({idx:i, name:String(h||'').trim()}))
-      .filter(({idx,name}) => !skipCols.has(idx) && name && !name.includes('مادة') || (name && !['اسم','حالة','نتيجة','تقدير','مواد'].some(k => name.includes(k))));
-
-    // Actually use simpler detection
+    // تحديد أعمدة المواد الدراسية فقط
+    const SKIP_KEYWORDS = ['اسم','حالة','نتيجة','تقدير','مواد','ملاحظات'];
+    const FIXED_COLS = new Set([nameCol, finalStatusCol, finalGradeCol].filter(i => i >= 0));
+    
     const subCols = [];
-    const SKIP_KEYWORDS = ['اسم','حالة','نتيجة','تقدير','مواد','ملاحظات','ت'];
-    header.forEach((h,i) => {
-      if(skipCols.has(i)) return;
-      const hStr = String(h||'').trim();
+    header.forEach((h, i) => {
+      if(FIXED_COLS.has(i)) return;
+      const hStr = String(h || '').trim();
       if(!hStr) return;
-      // تجاهل الأعمدة غير الدراسية
       if(SKIP_KEYWORDS.some(k => hStr.includes(k))) return;
-      subCols.push({idx:i, name:hStr});
+      subCols.push({idx: i, name: hStr});
     });
-    console.log('subCols:', subCols.map(s=>s.name));
+    console.log('✅ subCols:', subCols.map(s => s.name));
 
     const deptStudents = Object.values(STATE.students).filter(s => s.dept === deptName && s.period === period);
     let updated = 0, notFound = 0, errors = [];
