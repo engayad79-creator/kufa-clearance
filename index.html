@@ -349,10 +349,15 @@ body{
   font-weight:700;font-size:11px;
 }
 .grade-امتياز{background:#fbbf24;color:#000}
-.grade-جيد.جداً{background:#10b981;color:#fff}
+.grade-جيد\.جداً{background:#10b981;color:#fff}
+.grade-جيد\.جدا{background:#10b981;color:#fff}
 .grade-جيد{background:#3b82f6;color:#fff}
 .grade-متوسط{background:#8b5cf6;color:#fff}
 .grade-مقبول{background:#f59e0b;color:#fff}
+.grade-راسب{background:#ef4444;color:#fff}
+.grade-مكمل,.grade-مكمّل{background:#f97316;color:#fff}
+.grade-غائب{background:#6b7280;color:#fff}
+.grade-ضعيف{background:#dc2626;color:#fff}
 .grade-ضعيف{background:#ef4444;color:#fff}
 
 .final-result{
@@ -1040,6 +1045,16 @@ window.handlePwForgot = async function(){
   const role = STATE.role;
   if(!role){ alert('الرجاء اختيار الجهة أولاً'); return; }
   const info = (window.ROLE_INFO && window.ROLE_INFO[role]) || { title: role };
+
+  // تأكد من جاهزية Firebase
+  if(!STATE.db){
+    try { await initFirebase(); } catch(e){}
+  }
+  if(!STATE.db){
+    $('pwError').textContent = '❌ لا يوجد اتصال بالانترنت';
+    return;
+  }
+
   window.showConfirmDialog(
     '🔑 نسيت كلمة المرور؟',
     `سيتم إرسال طلب استعادة كلمة المرور لـ <b>${info.title}</b> إلى معاون العميد.<br/>سيقوم بإعادة تعيين كلمة مرورك قريباً.`,
@@ -1047,7 +1062,6 @@ window.handlePwForgot = async function(){
     async () => {
       try {
         const fb = window.__fb;
-        if(!STATE.db) throw new Error('لا يوجد اتصال بقاعدة البيانات');
         const nowStr = new Date().toLocaleString('ar-IQ');
         await fb.setDoc(fb.doc(STATE.db, 'pw_reset_requests', role), {
           role,
@@ -2574,8 +2588,15 @@ async function handleDeptResultsFile(file, deptName, period){
         if(grade === undefined || grade === null || String(grade).trim() === '') continue;
         subjects[sc.name] = String(grade).trim();
       }
-      const finalStatus = finalStatusCol >= 0 ? String(row[finalStatusCol]||'').trim() : '';
+      let finalStatus = finalStatusCol >= 0 ? String(row[finalStatusCol]||'').trim() : '';
       const finalGrade = finalGradeCol >= 0 ? String(row[finalGradeCol]||'').trim() : '';
+      // تصحيح تلقائي: غائب في مادة = مكمّل، راسب في كل المواد = راسب
+      const subjectVals = subCols.map(sc => String(row[sc.idx]||'').trim());
+      const hasGhaib = subjectVals.some(v => v.includes('غائب'));
+      const allFail = subjectVals.filter(v=>v).every(v => ['راسب','غائب','ضعيف'].some(f=>v.includes(f)));
+      if(finalStatus === 'ناجح' && hasGhaib){
+        finalStatus = 'مكمل';
+      }
       const notesCol = header.findIndex(h => String(h).includes('ملاحظات'));
       const notes = notesCol >= 0 ? String(row[notesCol]||'').trim() : '';
 
@@ -3744,7 +3765,8 @@ function displayStudentResults(student){
 
   // بطاقات المواد
   const subjectRows = subjectEntries.map(([subj, grade]) => {
-    const gradeClass = String(grade).replace(/ /g, '.');
+    const gradeStr = String(grade).trim();
+    const gradeClass = gradeStr.replace(/ /g, '.');
     const isMakeupSubj = makeupGrades.some(mg => String(grade).includes(mg));
     return `<div class="subject-row" style="${isMakeupSubj?'background:rgba(239,68,68,.05)':''}">
       <span style="color:var(--text);font-size:13px">${H.escapeHtml(subj)}</span>
@@ -4451,8 +4473,13 @@ async function handleResultsFile(file){
         subjects[sc.name] = gradeStr;
         hasAny = true;
       }
-      const finalStatus = finalStatusCol >= 0 ? String(row[finalStatusCol] || '').trim() : '';
+      let finalStatus = finalStatusCol >= 0 ? String(row[finalStatusCol] || '').trim() : '';
       const finalGrade = finalGradeCol >= 0 ? String(row[finalGradeCol] || '').trim() : '';
+      // تصحيح تلقائي: غائب في مادة = مكمّل
+      const subVals2 = subCols.map(sc => String(row[sc.idx]||'').trim());
+      if(finalStatus === 'ناجح' && subVals2.some(v => v.includes('غائب'))){
+        finalStatus = 'مكمل';
+      }
       if(!hasAny && !finalStatus) continue;
       
       const docData = {
@@ -4774,7 +4801,8 @@ async function loadPwResetRequests(){
     const snap = await fb.getDocs(fb.collection(STATE.db, 'pw_reset_requests'));
     const requests = [];
     snap.forEach(d => requests.push({ id: d.id, ...d.data() }));
-    const pending = requests.filter(r => r.status === 'pending');
+    console.log('طلبات الباسورد:', requests);
+    const pending = requests.filter(r => r.status === 'pending' || !r.status);
 
     if(pending.length === 0){
       listEl.innerHTML = '<div style="color:var(--muted);font-size:12px;padding:8px 0">لا توجد طلبات معلقة ✅</div>';
