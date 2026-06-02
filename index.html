@@ -3687,7 +3687,7 @@ function displayStudentResults(student){
   }
 
   // فلترة المواد الحقيقية فقط (تجاهل حالة الطالب والأعمدة غير الدراسية)
-  const skipWords = ['حالة','الحالة','منتظم','انتساب','المواد','ت'];
+  const skipWords = ['حالة الطالب','الحالة','منتظم','انتساب','المواد المطلوبة'];
   const subjectEntries = Object.entries(r.subjects).filter(([subj]) => {
     const s = subj.trim();
     return !skipWords.some(w => s.includes(w)) && s.length > 1;
